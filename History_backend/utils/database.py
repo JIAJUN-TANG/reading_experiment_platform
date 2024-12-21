@@ -183,7 +183,7 @@ def get_file(uuid):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT title, series_name, file, full_text
+        SELECT title, series_name, file
         FROM documents
         WHERE uuid = ?
     """, (uuid,))
@@ -194,7 +194,11 @@ def get_file(uuid):
 def get_full_text(uuid):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT full_text FROM documents WHERE uuid = ?", (uuid,))
+    cursor.execute("""
+        SELECT user_name, series_name, file_name, title, start_page, end_page, full_text
+        FROM documents
+        WHERE uuid = ?
+    """, (uuid,))
     result = cursor.fetchone()
     conn.close()
     return result

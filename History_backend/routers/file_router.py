@@ -33,29 +33,22 @@ async def get_file_endpoint(request: FileRequest):
         uuid = request.uuid
         result = get_file(uuid)
         if result:
-            title = result[0]
-            series_name = result[1]
-            file = result[2]
-            full_text = result[3]
+            title, series_name, file = result
 
             if not title:
                 title = series_name
 
-            response_data = {
-                "title": title,
-                "series_name": series_name,
-                "full_text": full_text,
-                "file_url": None
-            }
-
             if file:
                 file_stream = BytesIO(file)
-                file_url = f"/files/{uuid}.pdf"
-                response_data["file_url"] = file_url
-
-            return JSONResponse(content=response_data)
+                return StreamingResponse(file_stream, media_type="application/pdf")
+            else:
+                # 返回一个空的PDF流
+                empty_stream = BytesIO()
+                return StreamingResponse(empty_stream, media_type="application/pdf")
         else:
-            return JSONResponse(content={"error": "File not found"}, status_code=404)
+            # 返回一个空的PDF流
+            empty_stream = BytesIO()
+            return StreamingResponse(empty_stream, media_type="application/pdf")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{str(e)}")
 
@@ -64,6 +57,18 @@ async def get_full_text_endpoint(request: FileRequest):
     try:
         uuid = request.uuid
         result = get_full_text(uuid)
-        return result
+        if result:
+            user_name, series_name, file_name, title, start_page, end_page, full_text = result
+            return JSONResponse(content={
+                "user_name": user_name,
+                "series_name": series_name,
+                "file_name": file_name,
+                "title": title,
+                "start_page": start_page,
+                "end_page": end_page,
+                "full_text": full_text
+            })
+        else:
+            return JSONResponse(content={"error": "Full text not found"}, status_code=404)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{str(e)}")

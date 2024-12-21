@@ -15,6 +15,7 @@ import ProtectedRoute from './ProtectedRoute.jsx';
 import reportWebVitals from './reportWebVitals.jsx';
 import PreviewFilePage from './dashboard/components/PreviewFilePage.jsx';
 import KnowledgeGraph from './KnowledgeGraph.jsx';
+import Profile from './dashboard/components/Profile.jsx';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -88,6 +89,14 @@ function App() {
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
               <KnowledgeGraph />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/Profile"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <Profile />
             </ProtectedRoute>
           }
         />

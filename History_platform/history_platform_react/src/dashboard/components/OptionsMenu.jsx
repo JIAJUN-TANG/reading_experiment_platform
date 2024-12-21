@@ -12,6 +12,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import MenuButton from './MenuButton';
 import { useAuth } from '../../context/AuthContext'; // 确保路径正确
+import { useNavigate } from 'react-router-dom'; // 添加这行
 
 const MenuItem = styled(MuiMenuItem)({
   margin: '2px 0',
@@ -21,6 +22,7 @@ export default function OptionsMenu() {
   const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
   const { logout } = useAuth(); // 使用 useAuth 钩子获取 logout 方法
+  const navigate = useNavigate(); // 添加这行
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -32,6 +34,11 @@ export default function OptionsMenu() {
 
   const handleLogout = () => {
     logout(); // 调用 logout 方法
+    handleClose(); // 关闭菜单
+  };
+
+  const handleProfileClick = () => {
+    navigate('/Profile'); // 导航到个人信息页面
     handleClose(); // 关闭菜单
   };
 
@@ -64,7 +71,7 @@ export default function OptionsMenu() {
         }}
       >
         <MenuItem
-          onClick={handleClose}
+          onClick={handleProfileClick} // 修改这里，使用新的处理函数
           sx={{
             [`& .${listItemIconClasses.root}`]: {
               ml: 'auto',
@@ -72,7 +79,7 @@ export default function OptionsMenu() {
             },
           }}
         >
-          <ListItemText>个人资料</ListItemText>
+          <ListItemText>个人信息</ListItemText>
           <ListItemIcon>
             <AccountCircleRoundedIcon fontSize="small" />
           </ListItemIcon>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   Card,
@@ -28,7 +28,7 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { ExpandMore, RestartAlt, Downloading, FontDownload, FontDownloadOff } from '@mui/icons-material';
+import { ExpandMore, RestartAlt, Translate as TranslateIcon, FontDownload, FontDownloadOff } from '@mui/icons-material';
 import Stack from '@mui/material/Stack';
 import AppNavbar from './dashboard/components/AppNavbar.jsx';
 import Header from './dashboard/components/Header.jsx';
@@ -74,14 +74,23 @@ const Translate = (props) => {
   const [response, setResponse] = useState(null);
   const [language, setLanguage] = useState('自动检测语言'); // 默认选中“自动检测语言”
   const [service, setService] = useState('ChatGPT'); // 默认选中“ChatGPT”
-  const [autoTranslate, setAutoTranslate] = useState(true); // 自动翻译开关
+  const [autoTranslate, setAutoTranslate] = useState(true); // 自动���译开关
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [version, setVersion] = useState('full'); // 新增版本状态，默认全文对照模式
   const [highlightedIndex, setHighlightedIndex] = useState(null); // 高亮索引
   const [highlightEnabled, setHighlightEnabled] = useState(true); // 高亮功能的状态
   const [jumpToPage, setJumpToPage] = useState(currentPage);
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+    onPageChange: (e) => {
+      const newPage = e.currentPage + 1;
+      setCurrentPage(newPage);
+      if (autoTranslate) {
+        handleGetOcrAndTranslate(newPage);
+      }
+    },
+  });
+  const pdfViewerRef = useRef(null); // 新增：PDF Viewer的引用
 
   const handleUploadSuccess = (path, numPages) => {
     setFilePath(path);
@@ -130,15 +139,27 @@ const Translate = (props) => {
   }, [filePath, userInfo?.email, language, service]);
 
   const handlePageChange = (event, value) => {
+    const pageIndex = value - 1;
+    defaultLayoutPluginInstance.pageNavigationPluginInstance?.jumpToPage(pageIndex);
     setCurrentPage(value);
-    handleGetOcrAndTranslate(value);
+    if (autoTranslate) {
+      handleGetOcrAndTranslate(value);
+    }
+  };
+
+  const handleManualTranslate = () => {
+    if (!filePath) {
+      alert('请先上传文件！');
+      return;
+    }
+    handleGetOcrAndTranslate(currentPage);
   };
 
   useEffect(() => {
-    if (filePath && pageCount > 0) {
+    if (filePath && pageCount > 0 && autoTranslate) {
       handleGetOcrAndTranslate(1);
     }
-  }, [filePath, pageCount, handleGetOcrAndTranslate]);
+  }, [filePath, pageCount, handleGetOcrAndTranslate, autoTranslate]);
 
   helix.register();
 
@@ -198,12 +219,45 @@ const Translate = (props) => {
     }
   };
 
-  // 使用 sentence-splitter 分割文本
-  const splitTextByPunctuation = (text) => {
-    const sentences = split(text); // 使用 sentence-splitter 分割句子
-    return sentences
-      .filter((sentence) => sentence.type === 'Sentence') // 只保留句子部分
-      .map((sentence) => sentence.raw); // 提取原始句子内容
+  // 修改文本处理函数
+  const processTextWithSentences = (text) => {
+    const sentences = split(text);
+    let currentPosition = 0;
+    const segments = [];
+
+    sentences.forEach((item) => {
+      // 处理句子前的空白字符
+      const preWhitespace = text.slice(currentPosition, item.range[0]);
+      if (preWhitespace) {
+        segments.push({
+          type: 'whitespace',
+          content: preWhitespace,
+          position: segments.length
+        });
+      }
+
+      if (item.type === 'Sentence') {
+        segments.push({
+          type: 'sentence',
+          content: item.raw + ' ',  // 在句子后面添加一个空格
+          position: segments.length
+        });
+      }
+
+      currentPosition = item.range[1];
+    });
+
+    // 处理最后剩余的空白字符
+    const remainingWhitespace = text.slice(currentPosition);
+    if (remainingWhitespace) {
+      segments.push({
+        type: 'whitespace',
+        content: remainingWhitespace,
+        position: segments.length
+      });
+    }
+
+    return segments;
   };
 
   // 处理句子点击事件
@@ -213,6 +267,15 @@ const Translate = (props) => {
 
   const handleDocumentLoad = (e) => {
     setPageCount(e.doc.numPages); // 获取并设置 PDF 的总页数
+  };
+
+  // 添加 PDF 页码变化监听
+  const handlePdfPageChange = (e) => {
+    const newPage = e.currentPage + 1;
+    setCurrentPage(newPage);
+    if (autoTranslate) {
+      handleGetOcrAndTranslate(newPage);
+    }
   };
 
   return (
@@ -294,7 +357,6 @@ const Translate = (props) => {
                         size="small"
                       >
                         <MenuItem value="ChatGPT">ChatGPT</MenuItem>
-                        <MenuItem value="Doubao">豆包</MenuItem>
                         <MenuItem value="Llama">Llama</MenuItem>
                         <MenuItem value="Qweb">Qwen</MenuItem>
                       </Select>
@@ -315,33 +377,12 @@ const Translate = (props) => {
                       <Button
                         variant="contained"
                         color="secondary"
-                        onClick={handleClick}
-                        aria-controls={open ? 'export-menu' : undefined}
-                        aria-haspopup="true"
-                        aria-expanded={open ? 'true' : undefined}
+                        onClick={handleManualTranslate}
+                        disabled={loading}
                       >
-                        <Downloading sx={{ mr: 1 }} />
-                        导出结果
+                        <TranslateIcon sx={{ mr: 1 }} />
+                        开始翻译
                       </Button>
-
-                      {/* 下拉菜单 */}
-                      <Menu
-                        id="export-menu"
-                        anchorEl={anchorEl}
-                        open={open}
-                        onClose={handleClose}
-                        MenuListProps={{
-                          'aria-labelledby': 'export-button',
-                        }}
-                        PaperProps={{
-                          style: {
-                            width: anchorEl ? anchorEl.offsetWidth + 'px' : 'auto', // 设置菜单度与按钮一致
-                          },
-                        }}
-                      >
-                        <MenuItem onClick={handleClose}>导出翻译结果</MenuItem>
-                        <MenuItem onClick={handleClose}>导出双语结果</MenuItem>
-                      </Menu>
                     </Box>
                   </AccordionDetails>
                 </Accordion>
@@ -364,18 +405,20 @@ const Translate = (props) => {
                   }}
                 >
                   <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
-                    <Viewer
-                      fileUrl={`http://114.212.97.42:8000${filePath}`}
-                      plugins={[defaultLayoutPluginInstance]}
-                      onDocumentLoad={handleDocumentLoad}
-                    />
+                    <div style={{ height: '100%' }}>
+                      <Viewer
+                        fileUrl={`http://114.212.97.42:8000${filePath}`}
+                        plugins={[defaultLayoutPluginInstance]}
+                        onPageChange={handlePdfPageChange}
+                        onDocumentLoad={handleDocumentLoad}
+                      />
+                    </div>
                   </Worker>
                 </Box>
 
                 {/* 第三列：OCR 和翻译结果 */}
                 <Box sx={{ width: '55%', maxWidth: '100%', height: '100vh', position: 'relative' }}>
                   <Card sx={{ alignSelf: 'center', mx: 'auto', width: '100%', maxWidth: '100%', boxShadow: 3, p: 2, mb: 1 }}>
-                    {/* 模式切换面包屑 */}
                     <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
                       <Link
                         color={version === 'full' ? 'primary' : 'inherit'}
@@ -422,65 +465,65 @@ const Translate = (props) => {
                             {/* 全文对照模式 */}
                             <Box sx={{ mb: 2 }}>
                               <Stack direction="row" spacing={2}>
-                                {/* OCR文本显示在左侧，占50%宽度，超出内容换行 */}
+                                {/* OCR文本显示 */}
                                 <Box sx={{ flex: '0 0 50%' }}>
                                   <Divider variant="middle" sx={{ mb: 2 }}>
                                     <Chip label={`OCR原文 - 第 ${currentPage} 页`} size="big" />
                                   </Divider>
-                                  {splitTextByPunctuation(ocrText, '.!?').map((line, index) => (
-                                    <Typography
-                                      key={index}
-                                      onClick={() => {
-                                        if (highlightEnabled) {
-                                          handleSentenceClick(index); // 仅在高亮功能开启时处理点击事件
-                                        }
-                                      }}
-                                      sx={{
-                                        whiteSpace: 'pre-line',
-                                        mb: 1,
-                                        cursor: highlightEnabled ? 'pointer' : 'default', // 根据高亮功能设置光标样式
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          backgroundColor: highlightedIndex === index ? 'rgba(173, 216, 230, 0.5)' : 'transparent', // 使用半透明的浅蓝色
-                                        }}
-                                      >
-                                        {line.trim()} {/* 只高亮非空白区域 */}
-                                      </span>
-                                      {line.trim() !== line && line.slice(line.trim().length)} {/* 保留空白区域 */}
-                                    </Typography>
-                                  ))}
+                                  <Typography sx={{ whiteSpace: 'pre-wrap' }}>
+                                    {processTextWithSentences(ocrText).map((segment, index) => {
+                                      if (segment.type === 'whitespace') {
+                                        return <React.Fragment key={index}>{segment.content}</React.Fragment>;
+                                      } else {
+                                        return (
+                                          <span
+                                            key={index}
+                                            onClick={() => {
+                                              if (highlightEnabled) {
+                                                handleSentenceClick(segment.position);
+                                              }
+                                            }}
+                                            style={{
+                                              backgroundColor: highlightedIndex === segment.position ? 'rgba(173, 216, 230, 0.5)' : 'transparent',
+                                              cursor: highlightEnabled ? 'pointer' : 'default',
+                                            }}
+                                          >
+                                            {segment.content}
+                                          </span>
+                                        );
+                                      }
+                                    })}
+                                  </Typography>
                                 </Box>
-                                {/* 翻译文本显示在右侧，占50%宽度，超出内容换行 */}
+                                {/* 翻译文本显示 */}
                                 <Box sx={{ flex: '0 0 50%' }}>
                                   <Divider variant="middle" sx={{ mb: 2 }}>
                                     <Chip label={`AI翻译 - 第 ${currentPage} 页`} size="big" />
                                   </Divider>
-                                  {splitTextByPunctuation(translatedText, '。！？').map((line, index) => (
-                                    <Typography
-                                      key={index}
-                                      onClick={() => {
-                                        if (highlightEnabled) {
-                                          handleSentenceClick(index); // 仅在高亮功能开启时处理点击事件
-                                        }
-                                      }}
-                                      sx={{
-                                        whiteSpace: 'pre-line',
-                                        mb: 1,
-                                        cursor: highlightEnabled ? 'pointer' : 'default', // 根据高亮功能设置光标样式
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          backgroundColor: highlightedIndex === index ? 'rgba(173, 216, 230, 0.5)' : 'transparent', // 使用半透明的浅蓝色
-                                        }}
-                                      >
-                                        {line.trim()} {/* 只高亮非空白区域 */}
-                                      </span>
-                                      {line.trim() !== line && line.slice(line.trim().length)} {/* 保留空白区域 */}
-                                    </Typography>
-                                  ))}
+                                  <Typography sx={{ whiteSpace: 'pre-wrap' }}>
+                                    {processTextWithSentences(translatedText).map((segment, index) => {
+                                      if (segment.type === 'whitespace') {
+                                        return <React.Fragment key={index}>{segment.content}</React.Fragment>;
+                                      } else {
+                                        return (
+                                          <span
+                                            key={index}
+                                            onClick={() => {
+                                              if (highlightEnabled) {
+                                                handleSentenceClick(segment.position);
+                                              }
+                                            }}
+                                            style={{
+                                              backgroundColor: highlightedIndex === segment.position ? 'rgba(173, 216, 230, 0.5)' : 'transparent',
+                                              cursor: highlightEnabled ? 'pointer' : 'default',
+                                            }}
+                                          >
+                                            {segment.content}
+                                          </span>
+                                        );
+                                      }
+                                    })}
+                                  </Typography>
                                 </Box>
                               </Stack>
                             </Box>
@@ -488,29 +531,34 @@ const Translate = (props) => {
                         ) : (
                           <>
                             {/* 行对照模式 */}
-                            {splitTextByPunctuation(ocrText, '.!?').map((line, index) => (
-                              <Box key={index} sx={{ mb: 2 }}>
-                                <Divider variant="middle" sx={{ mb: 2 }}>
-                                  <Chip label={`第 ${index + 1} 句`} size="big" />
-                                </Divider>
-                                <Stack direction="row" spacing={2}>
-                                  {/* OCR文本显示在左侧，占50%宽度，超出内容换行 */}
-                                  <Box sx={{ flex: '0 0 50%' }}>
-                                    <Typography sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', width: '100%' }}>
-                                      <strong>OCR原文：</strong>
-                                      {line}
-                                    </Typography>
+                            {processTextWithSentences(ocrText).map((segment, index) => {
+                              if (segment.type === 'sentence') {
+                                return (
+                                  <Box key={index} sx={{ mb: 2 }}>
+                                    <Divider variant="middle" sx={{ mb: 2 }}>
+                                      <Chip label={`第 ${index + 1} 句`} size="big" />
+                                    </Divider>
+                                    <Stack direction="row" spacing={2}>
+                                      {/* OCR文本显示在左侧，占50%宽度，超出内容换行 */}
+                                      <Box sx={{ flex: '0 0 50%' }}>
+                                        <Typography sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', width: '100%' }}>
+                                          <strong>OCR原文：</strong>
+                                          {segment.content}
+                                        </Typography>
+                                      </Box>
+                                      {/* 翻译文本显示在右侧，占50%宽度，超出内容换行 */}
+                                      <Box sx={{ flex: '0 0 50%' }}>
+                                        <Typography sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', width: '100%' }}>
+                                          <strong>AI翻译：</strong>
+                                          {processTextWithSentences(translatedText)[index]?.content || '无翻译结果'}
+                                        </Typography>
+                                      </Box>
+                                    </Stack>
                                   </Box>
-                                  {/* 翻译文本显示在右侧，占50%宽度，超出内容换行 */}
-                                  <Box sx={{ flex: '0 0 50%' }}>
-                                    <Typography sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', width: '100%' }}>
-                                      <strong>AI翻译：</strong>
-                                      {splitTextByPunctuation(translatedText, '。！？')[index] || '无翻译结果'}
-                                    </Typography>
-                                  </Box>
-                                </Stack>
-                              </Box>
-                            ))}
+                                );
+                              }
+                              return null;
+                            })}
                           </>
                         )}
                       </CardContent>

@@ -25,6 +25,7 @@ const pathNameMap = {
   '/Process': '文献数字化',
   '/Database': '文献数据库',
   '/KnowledgeGraph': '文献图谱',
+  '/Profile': '个人信息',
 };
 
 export default function NavbarBreadcrumbs() {
@@ -32,7 +33,7 @@ export default function NavbarBreadcrumbs() {
   const currentPath = location.pathname;
 
   // 根据当前路径获取对应的页面名称
-  const pageName = pathNameMap[currentPath] || '未知页面';
+  const pageName = pathNameMap[currentPath] || '文件预览';
 
   return (
     <StyledBreadcrumbs

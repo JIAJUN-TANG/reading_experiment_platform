@@ -11,6 +11,7 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SideMenuMobile from './SideMenuMobile';
 import MenuButton from './MenuButton';
 import ColorModeIconDropdown from '../../shared-theme/ColorModeIconDropdown';
+import { Person as PersonIcon } from '@mui/icons-material';
 
 const Toolbar = styled(MuiToolbar)({
   width: '100%',
@@ -34,6 +35,14 @@ export default function AppNavbar() {
   const toggleDrawer = (newOpen) => () => {
     setOpen(newOpen);
   };
+
+  const menuItems = [
+    {
+      icon: <PersonIcon />,
+      label: '个人信息',
+      path: '/profile',
+    },
+  ];
 
   return (
     <AppBar

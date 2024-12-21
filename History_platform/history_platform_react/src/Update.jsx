@@ -1,117 +1,153 @@
-import React from "react";
-import { AppBar, Box, Button, Container, CssBaseline, Grid, Toolbar, Typography } from "@mui/material";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+import React, { useState } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Stack,
+  alpha,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from '@mui/material';
+import CssBaseline from '@mui/material/CssBaseline';
+import AppNavbar from './dashboard/components/AppNavbar';
+import Header from './dashboard/components/Header';
+import SideMenu from './dashboard/components/SideMenu';
+import AppTheme from './shared-theme/AppTheme';
+import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { useUser } from './UserProvider';
 
-// 创建主题
-const theme = createTheme();
+const Update = (props) => {
+  const { userInfo } = useUser();
+  const [formData, setFormData] = useState({
+    series: '',
+    language: '日语',
+    file: null,
+  });
 
-function App() {
+  const handleChange = (field) => (event) => {
+    setFormData({
+      ...formData,
+      [field]: event.target.value,
+    });
+  };
+
+  const handleFileChange = (event) => {
+    setFormData({
+      ...formData,
+      file: event.target.files[0],
+    });
+  };
+
+  const handleSubmit = async () => {
+    // 处理提交逻辑
+  };
+
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {/* 导航栏 */}
-      <AppBar position="static" color="default" elevation={0}>
-        <Toolbar sx={{ flexWrap: "wrap" }}>
-          <Typography variant="h6" color="inherit" noWrap sx={{ flexGrow: 1 }}>
-            Your Company
-          </Typography>
-          <nav>
-            <Button href="#" sx={{ my: 1, mx: 1.5 }}>
-              Features
-            </Button>
-            <Button href="#" sx={{ my: 1, mx: 1.5 }}>
-              Enterprise
-            </Button>
-            <Button href="#" sx={{ my: 1, mx: 1.5 }}>
-              Support
-            </Button>
-          </nav>
-          <Button href="#" variant="outlined" sx={{ my: 1, mx: 1.5 }}>
-            Login
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      {/* 内容 */}
-      <main>
+    <AppTheme {...props}>
+      <CssBaseline enableColorScheme />
+      <Box sx={{ display: 'flex', minheight: '100vh'}}>
+        <SideMenu />
+        <AppNavbar />
         <Box
-          sx={{
-            bgcolor: "background.paper",
-            pt: 8,
-            pb: 6,
-          }}
+          component="main"
+          className="MainContent"
+          sx={(theme) => ({
+            flexGrow: 1,
+            backgroundColor: theme.vars
+              ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
+              : alpha(theme.palette.background.default, 1),
+            paddingTop: 0,
+          })}
         >
-          <Container maxWidth="sm">
-            <Typography
-              component="h1"
-              variant="h2"
-              align="center"
-              color="text.primary"
-              gutterBottom
-            >
-              Marketing Page
-            </Typography>
-            <Typography variant="h5" align="center" color="text.secondary" paragraph>
-              Quickly build an effective marketing homepage with this template.
-              It's built with MUI components with minimal customization.
-            </Typography>
-            <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
-              <Button variant="contained" sx={{ mx: 1 }}>
-                Get Started
-              </Button>
-              <Button variant="outlined" sx={{ mx: 1 }}>
-                Learn More
-              </Button>
-            </Box>
-          </Container>
-        </Box>
+          <Header />
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              padding: 2,
+            }}
+          >
+            <Card sx={{ width: '100%', maxWidth: 800 }}>
+              <CardContent>
+                <Stack spacing={3}>
+                  <Typography variant="h5" align="center">
+                    上传新文献
+                  </Typography>
 
-        {/* 卡片网格 */}
-        <Container maxWidth="md" sx={{ py: 8 }}>
-          <Grid container spacing={4}>
-            {[1, 2, 3].map((item) => (
-              <Grid item key={item} xs={12} sm={6} md={4}>
-                <Box
-                  sx={{
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    p: 2,
-                    textAlign: "center",
-                  }}
-                >
-                  <Typography variant="h6" gutterBottom>
-                    Heading {item}
-                  </Typography>
-                  <Typography>
-                    This is a media card. You can use this section to describe
-                    the content.
-                  </Typography>
-                  <Button sx={{ mt: 2 }} variant="outlined">
-                    View
+                  <FormControl fullWidth>
+                    <InputLabel>系列</InputLabel>
+                    <Select
+                      value={formData.series}
+                      onChange={handleChange('series')}
+                      label="系列"
+                    >
+                      <MenuItem value="系列1">系列1</MenuItem>
+                      <MenuItem value="系列2">系列2</MenuItem>
+                      <MenuItem value="系列3">系列3</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl fullWidth>
+                    <InputLabel>语言</InputLabel>
+                    <Select
+                      value={formData.language}
+                      onChange={handleChange('language')}
+                      label="语言"
+                    >
+                      <MenuItem value="日语">日语</MenuItem>
+                      <MenuItem value="英语">英语</MenuItem>
+                      <MenuItem value="德语">德语</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <Box>
+                    <input
+                      accept="application/pdf"
+                      style={{ display: 'none' }}
+                      id="file-upload"
+                      type="file"
+                      onChange={handleFileChange}
+                    />
+                    <label htmlFor="file-upload">
+                      <Button
+                        variant="outlined"
+                        component="span"
+                        startIcon={<CloudUploadIcon />}
+                        fullWidth
+                      >
+                        选择PDF文件
+                      </Button>
+                    </label>
+                    {formData.file && (
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        已选择: {formData.file.name}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSubmit}
+                    disabled={!formData.file || !formData.series}
+                  >
+                    上传文献
                   </Button>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </main>
-
-      {/* Footer */}
-      <Box sx={{ bgcolor: "background.paper", p: 6 }} component="footer">
-        <Typography variant="h6" align="center" gutterBottom>
-          Footer
-        </Typography>
-        <Typography
-          variant="subtitle1"
-          align="center"
-          color="text.secondary"
-          component="p"
-        >
-          Something here to give the footer a purpose!
-        </Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
       </Box>
-    </ThemeProvider>
+    </AppTheme>
   );
-}
+};
 
-export default App;
+export default Update;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
-import { alpha, Stack, Box, Typography, Card, CardContent } from '@mui/material';
+import { alpha, Stack, Box, Typography, Card, CardContent, Divider } from '@mui/material';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import '@react-pdf-viewer/core/lib/styles/index.css';
@@ -15,46 +15,71 @@ import AppTheme from '../../shared-theme/AppTheme';
 
 export default function FilePreview(props) {
   const { uuid } = useParams();
-  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [fullText, setFullText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [title, setTitle] = useState('');
+  const [owner, setOwner] = useState('');
+  const [series, setSeries] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [startPage, setStartPage] = useState('');
+  const [endPage, setEndPage] = useState('');
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true); // Start loading state
-      setError(null); // Clear previous errors
+    const fetchFileAndText = async () => {
+      setLoading(true);
+      setError(null);
 
       try {
-        const response = await axios.post(
+        // 请求文件
+        const fileResponse = await axios.post(
           'http://114.212.97.42:8000/file/GetFile/',
           { uuid: uuid },
-          {
-            headers: { 'Content-Type': 'application/json' },
-          }
+          { responseType: 'blob' }
         );
 
-        const { file_url, full_text, title } = response.data;
-
-        if (file_url) {
-          setPdfFile(file_url);
+        if (fileResponse.status === 200 && fileResponse.data.size > 0) {
+          const blob = new Blob([fileResponse.data], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
         }
 
-        setFullText(full_text || '无内容');
-        setTitle(title || '文档标题');
+        // 请求全文
+        const textResponse = await axios.post(
+          'http://114.212.97.42:8000/file/GetFullText/',
+          { uuid: uuid }
+        );
+
+        if (textResponse.status === 200) {
+          const { full_text, title, user_name, series_name, file_name, start_page, end_page } = textResponse.data;
+          setFullText(full_text || '无内容');
+          setTitle(title || '文档标题');
+          setOwner(user_name || '未知所有者');
+          setSeries(series_name || '未知系列');
+          setFileName(file_name || '未知文件名');
+          setStartPage(start_page || '未知起始页');
+          setEndPage(end_page || '未知结束页');
+        }
       } catch (error) {
-        console.error('加载文件内容失败:', error);
-        setError('文件加载失败');
+        console.error('加载文件或全文失败:', error);
+        setError('加载失败');
       }
 
       setLoading(false);
     };
 
-    fetchData();
+    fetchFileAndText();
+
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
   }, [uuid]);
 
+  dotSpinner.register();
   if (loading) {
     return (
       <Box
@@ -87,7 +112,7 @@ export default function FilePreview(props) {
   return (
     <AppTheme {...props}>
       <CssBaseline enableColorScheme />
-      <Box sx={{ display: 'flex' }}>
+      <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         <AppNavbar />
         {/* Main content */}
         <Box
@@ -98,38 +123,101 @@ export default function FilePreview(props) {
               ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
               : alpha(theme.palette.background.default, 1),
             overflow: 'auto',
+            padding: 3,
+            display: 'flex',
+            flexDirection: 'column',
           })}
         >
           <Stack
             spacing={2}
             sx={{
               alignItems: 'center',
-              mx: 3,
-              pb: 5,
+              pb: 2,
               mt: { xs: 8, md: 0 },
             }}
           >
             <Header />
+            {/* 信息卡片 */}
+            <Card sx={{ width: '90%', marginTop: 2 }}>
+              <CardContent>
+                <Typography variant="h4" align="center" gutterBottom>
+                  {title}
+                </Typography>
+                <Divider sx={{ mb: 2 }}/>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <strong>所有者:</strong> {owner}
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <strong>系列:</strong> {series}
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <strong>文件名:</strong> {fileName}
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <strong>起始页:</strong> {startPage}
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <strong>结束页:</strong> {endPage}
+                </Typography>
+              </CardContent>
+            </Card>
           </Stack>
-          <Box sx={{ display: 'flex', width: '100%', height: '100%' }}>
-            {pdfFile ? (
-              <Box sx={{ flex: 1, padding: '10px', borderRight: '2px solid #ccc', height: '100%' }}>
-                <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
-                  <Viewer fileUrl={pdfFile} plugins={[defaultLayoutPluginInstance]} />
-                </Worker>
+
+          {/* 预览区域 */}
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              gap: 2,
+              flex: 1,
+              height: 'calc(100vh - 350px)',
+              width: '90%',
+              margin: '0 auto',
+            }}
+          >
+            {pdfBlobUrl ? (
+              <Box 
+                sx={{ 
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  bgcolor: 'background.paper',
+                  borderRadius: 1,
+                  boxShadow: 1,
+                  overflow: 'hidden',
+                }}
+              >
+                <Typography variant="h6" align="center" sx={{ py: 1 }}>
+                  PDF 预览
+                </Typography>
+                <Divider />
+                <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                  <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
+                    <Viewer fileUrl={pdfBlobUrl} plugins={[defaultLayoutPluginInstance]} />
+                  </Worker>
+                </Box>
               </Box>
             ) : null}
-            <Box sx={{ flex: 1, padding: '10px', height: '100%' }}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flex: 1, overflowY: 'auto' }}>
-                  <Typography variant="h6" gutterBottom>
-                    {title}
-                  </Typography>
-                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                    {fullText}
-                  </Typography>
-                </CardContent>
-              </Card>
+
+            <Box 
+              sx={{ 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: 'background.paper',
+                borderRadius: 1,
+                boxShadow: 1,
+                overflow: 'hidden',
+              }}
+            >
+              <Typography variant="h6" align="center" sx={{ py: 1 }}>
+                全文预览
+              </Typography>
+              <Divider />
+              <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {fullText}
+                </Typography>
+              </Box>
             </Box>
           </Box>
         </Box>

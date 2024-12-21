@@ -68,6 +68,15 @@ async def save_results_to_cache(file_path: str, page: int, ocr_text: str, transl
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save results to cache: {str(e)}")
     
+async def retry_request(payload, service, max_retries=5, delay=2):
+    for attempt in range(max_retries):
+        response = send_request(payload, service)
+        if response:
+            return response
+        if attempt < max_retries - 1:
+            time.sleep(delay)
+    return None
+
 async def translate_text(file_path, email, page, language, service):
     filename = os.path.splitext(os.path.basename(file_path))[0]
     cache_path = await get_user_cache_path(email, filename)
@@ -78,16 +87,9 @@ async def translate_text(file_path, email, page, language, service):
         image = await get_page_image(file_path, page)
         encoded_image = await encode_image(image)
         if service == "ChatGPT":
-            API_key = "sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1"
             model = "gpt-4o-mini"
-        elif service == "Doubao":
-            API_key = "af32cad5-249b-4518-b5f8-46103b2c82c3"
-            model = "Doubao-vision-pro-32k"
-            ocr_headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_key}"
-        }
-            ocr_payload = {
+        
+        ocr_payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": "你是一位历史研究的专家，精通多种语言，因此你很熟悉档案识别。"},
@@ -100,25 +102,19 @@ async def translate_text(file_path, email, page, language, service):
             "presence_penalty": 0
         }
         
-            ocr_response = send_request(ocr_headers, ocr_payload, service)
-            if not ocr_response or ocr_response.status_code != 200:
-                time.sleep(2)  # Wait for 2 seconds and retry
-                ocr_response = send_request(ocr_headers, ocr_payload, service)
-        
-            # 检查 OCR 响应是否包含有效的 choices
-            ocr_choices = ocr_response.json().get("choices", [])
-            if not ocr_choices:
-                raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
+        ocr_response = await retry_request(ocr_payload, service)
+        if not ocr_response:
+            raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
 
-            ocr_text = ocr_choices[0].get("message", {}).get("content", "").replace("`", "")
-            if not ocr_text:
-                raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
+        ocr_choices = ocr_response.choices
+        if not ocr_choices:
+            raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
 
-            translation_headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_key}"
-        }
-            translation_payload = {
+        ocr_text = ocr_choices[0].message.content.replace("`", "")
+        if not ocr_text:
+            raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
+
+        translation_payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": "你是一位历史研究的专家，精通多种语言，因此你很熟悉档案翻译。除了翻译结果外不要增加其他任何文本。"},
@@ -130,20 +126,18 @@ async def translate_text(file_path, email, page, language, service):
             "presence_penalty": 0
         }
 
-            translation_response = send_request(translation_headers, translation_payload, service)
-            if not translation_response or translation_response.status_code != 200:
-                time.sleep(2)  # Wait for 2 seconds and retry
-                translation_response = send_request(translation_headers, translation_payload, service)
+        translation_response = await retry_request(translation_payload, service)
+        if not translation_response:
+            raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 
-            # 检查翻译响应是否包含有效的 choices
-            translation_choices = translation_response.json().get("choices", [])
-            if not translation_choices:
-                raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
+        translation_choices = translation_response.choices
+        if not translation_choices:
+            raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 
-            translated_text = translation_choices[0].get("message", {}).get("content", "").replace("`", "")
-            if not translated_text:
-                raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
+        translated_text = translation_choices[0].message.content.replace("`", "")
+        if not translated_text:
+            raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 
-            await save_results_to_cache(cache_path, page, ocr_text, translated_text)
+        await save_results_to_cache(cache_path, page, ocr_text, translated_text)
 
-            return {"ocr_text": ocr_text, "translated_text": translated_text}
+        return {"ocr_text": ocr_text, "translated_text": translated_text}
