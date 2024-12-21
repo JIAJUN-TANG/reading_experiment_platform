@@ -1,0 +1,12 @@
+node_modules
+surya_det3
+surya_rec2
+public
+cached
+cert
+.vscode
+DocLayoutYOLO
+GOT
+images
+cert.pem
+key.pem
