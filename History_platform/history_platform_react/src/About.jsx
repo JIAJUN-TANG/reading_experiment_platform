@@ -110,11 +110,15 @@ export default function Dashboard(props) {
             sx={{
               alignItems: 'center',
               mx: 3,
+              pl: 5,
+              pr: 5,
               pb: 5,
-              mt: { xs: 8, md: 0 },
+              mt: { xs: 8, md: 1 },
+              width: '100%',
             }}
           >
             <Header />
+            </Stack>
 
             {/* Tabs for Introduction, People, and Contact */}
             <Tabs
@@ -336,7 +340,6 @@ export default function Dashboard(props) {
             <TabPanel value={tabIndex} index={3}>
               联系我们：可以通过邮箱或电话与我们取得联系。
             </TabPanel>
-          </Stack>
         </Box>
       </Box>
     </AppTheme>

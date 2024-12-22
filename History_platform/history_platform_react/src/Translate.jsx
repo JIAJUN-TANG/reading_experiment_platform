@@ -292,6 +292,7 @@ const Translate = (props) => {
               ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
               : alpha(theme.palette.background.default, 1),
             paddingTop: 0,
+            overflow: 'auto',
           })}
         >
           <Stack
@@ -299,8 +300,11 @@ const Translate = (props) => {
             sx={{
               alignItems: 'center',
               mx: 3,
+              pl: 5,
+              pr: 5,
               pb: 5,
-              mt: { xs: 8, md: 0 },
+              mt: { xs: 8, md: 1 },
+              width: '100%',
             }}
           >
             <Header />

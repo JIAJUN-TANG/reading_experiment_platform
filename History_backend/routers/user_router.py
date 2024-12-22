@@ -47,7 +47,7 @@ async def SignIn(user: UserLogin):
     
     else:
     # 解包查询结果
-        email, hashed_password, user_name, affiliation = user_data
+        email, hashed_password, user_name, affiliation, register_date = user_data
 
     # 验证密码
     if not pwd_context.verify(user.password, hashed_password):
@@ -66,7 +66,8 @@ async def SignIn(user: UserLogin):
         content={"msg": "登录成功！", "user_info": {
             "email": email,
             "user_name": user_name,
-            "affiliation": affiliation
+            "affiliation": affiliation,
+            "register_date": register_date
         }},
     )
     response.set_cookie(
@@ -107,10 +108,10 @@ async def check_auth(request: Request):
             raise HTTPException(status_code=401, detail="用户不存在！")
 
         # 解包查询结果
-        email, hashed_password, user_name, affiliation = user_data
+        email, hashed_password, user_name, affiliation, register_date = user_data
 
         # 返回用户信息
-        return {"user": {"email": email, "user_name": user_name}}
+        return {"user": {"email": email, "user_name": user_name, "affiliation": affiliation, "register_date": register_date}}
 
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="登录已过期！")

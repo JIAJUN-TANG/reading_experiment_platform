@@ -104,7 +104,7 @@ def record_usage(uuid, email, user_name, affiliation, login_date, ip_address):
 def user_login(email):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT email, passwd, user_name, affiliation FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT email, passwd, user_name, affiliation, register_date FROM users WHERE email = ?", (email,))
     user_data = cursor.fetchone()
     conn.close()
     # 检查用户是否存在
@@ -202,3 +202,40 @@ def get_full_text(uuid):
     result = cursor.fetchone()
     conn.close()
     return result
+
+def get_usage_statistics():
+    """获取最近6个月的使用统计数据"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 查询最近6个月的使用情况
+    cursor.execute("""
+        SELECT 
+            strftime('%Y-%m', login_date) as month,
+            COUNT(*) as count
+        FROM usage
+        WHERE login_date >= date('now', '-6 months')
+        GROUP BY strftime('%Y-%m', login_date)
+        ORDER BY month DESC
+        LIMIT 6
+    """)
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # 处理结果
+    months = []
+    counts = []
+    for row in rows:
+        months.append(row[0])  # 月份
+        counts.append(row[1])  # 使用次数
+    
+    # 反转列表使其按时间顺序排列
+    months.reverse()
+    counts.reverse()
+    
+    return {
+        "months": months,
+        "counts": counts,
+        "total": sum(counts)  # 总使用次数
+    }

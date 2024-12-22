@@ -15,6 +15,7 @@ import time
 import json
 from utils.request import send_request
 
+
 det_processor, det_model = load_det_processor(), load_det_model()
 rec_model, rec_processor = load_rec_model(), load_rec_processor()
 
@@ -171,3 +172,8 @@ async def process_pdf_pages(pdf_path: str, ocr_results: Dict, user_name: str, se
         split_pdf.close()
 
     doc.close()
+
+async def get_catelogue(file_path, start_page, end_page, language):
+    images, images_list = await pdf_to_images(file_path, start_page, end_page)
+    ocr_results = await perform_ocr(images, language)
+    return ocr_results

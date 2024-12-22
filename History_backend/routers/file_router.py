@@ -1,10 +1,9 @@
 import os
 from fastapi import APIRouter, HTTPException, UploadFile, Form, File
-from schemas import FileRequest
+from schemas import FileRequest, GetCatalogueRequest
 from utils.database import get_file, get_full_text
-from utils.file_processing import get_file_list, upload_file
+from utils.file_processing import get_file_list, upload_file, get_catelogue
 from fastapi.responses import StreamingResponse, JSONResponse
-from urllib.parse import quote
 from io import BytesIO
 
 
@@ -70,5 +69,13 @@ async def get_full_text_endpoint(request: FileRequest):
             })
         else:
             return JSONResponse(content={"error": "Full text not found"}, status_code=404)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"{str(e)}")
+
+@file_router.post("/GetCatelogue/")
+async def get_catalogue_endpoint(request: GetCatalogueRequest):
+    try:
+        result = get_catelogue(request)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{str(e)}")

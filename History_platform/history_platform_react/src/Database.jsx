@@ -73,8 +73,11 @@ export default function Database(props) {
             sx={{
               alignItems: 'center',
               mx: 3,
+              pl: 5,
+              pr: 5,
               pb: 5,
-              mt: { xs: 3, md: 0 },  // Adjust margin-top for mobile view
+              mt: { xs: 8, md: 1 },
+              width: '100%',
             }}
           >
             <Header />

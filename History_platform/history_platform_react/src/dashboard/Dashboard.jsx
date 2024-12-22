@@ -51,13 +51,16 @@ export default function Dashboard(props) {
             sx={{
               alignItems: 'center',
               mx: 3,
+              pl: 5,
+              pr: 5,
               pb: 5,
-              mt: { xs: 8, md: 0 },
+              mt: { xs: 8, md: 1 },
+              width: '100%',
             }}
           >
             <Header />
-            <MainGrid />
           </Stack>
+          <Box sx={{ pl: 2, pr: 2}}><MainGrid/></Box>
         </Box>
         <FloatingChatButton assistant_message={textContent}/>
       </Box>

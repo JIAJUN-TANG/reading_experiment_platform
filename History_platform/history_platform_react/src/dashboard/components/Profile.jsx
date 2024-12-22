@@ -54,31 +54,41 @@ const Profile = (props) => {
   return (
     <AppTheme {...props}>
       <CssBaseline enableColorScheme />
-      <Box sx={{ display: 'flex', minheight: '100vh' }}>
+      <Box sx={{ display: 'flex'}}>
         <SideMenu />
         <AppNavbar />
         <Box
           component="main"
-          className="MainContent"
           sx={(theme) => ({
             flexGrow: 1,
             backgroundColor: theme.vars
               ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
               : alpha(theme.palette.background.default, 1),
-            paddingTop: 0,
           })}
         >
-          <Header />
-          <Box
+          <Stack
+            spacing={2}
             sx={{
-              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              padding: 2,
+              mx: 3,
+              pl: 5,
+              pr: 5,
+              pb: 5,
+              mt: { xs: 8, md: 1 },
+              width: '100%',
             }}
           >
-            <Card sx={{ width: '100%', maxWidth: 800 }}>
+            <Header />
+          </Stack>
+          <Box
+            sx={{
+              width: '100%',
+              maxWidth: '100%',
+              padding: 2,
+              margin: '0 auto',
+            }}
+          >
+            <Card>
               <CardContent>
                 <Stack spacing={3}>
                   {/* 头像和用户名部分 */}
@@ -100,57 +110,96 @@ const Profile = (props) => {
 
                   {/* 个人信息表单 */}
                   <Stack spacing={3}>
-                    <TextField
-                      label="邮箱"
-                      value={formData.email}
-                      onChange={handleChange('email')}
-                      disabled={!isEditing || true}
-                      fullWidth
-                    />
-                    <TextField
-                      label="用户名"
-                      value={formData.userName}
-                      onChange={handleChange('userName')}
-                      disabled={!isEditing}
-                      fullWidth
-                    />
-                    <TextField
-                      label="所属机构"
-                      value={formData.affiliation}
-                      onChange={handleChange('affiliation')}
-                      disabled={!isEditing}
-                      fullWidth
-                    />
-                    <TextField
-                      label="注册日期"
-                      value={formData.registerDate}
-                      disabled
-                      fullWidth
-                    />
-                  </Stack>
+                    {/* 将表单分为两列 */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                      {/* 左列 */}
+                      <Stack spacing={3}>
+                        {/* 邮箱 */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            邮箱
+                          </Typography>
+                          <Typography variant="body1">
+                            {formData.email}
+                          </Typography>
+                        </Box>
 
-                  {/* 编辑/保存按钮 */}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    {isEditing ? (
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<SaveIcon />}
-                        onClick={handleSave}
-                      >
-                        保存更改
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<EditIcon />}
-                        onClick={handleEdit}
-                      >
-                        编辑信息
-                      </Button>
-                    )}
-                  </Box>
+                        {/* 用户名 */}
+                        {isEditing ? (
+                          <TextField
+                            label="用户名"
+                            value={formData.userName}
+                            onChange={handleChange('userName')}
+                            fullWidth
+                          />
+                        ) : (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                              用户名
+                            </Typography>
+                            <Typography variant="body1">
+                              {formData.userName}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Stack>
+
+                      {/* 右列 */}
+                      <Stack spacing={3}>
+                        {/* 所属机构 */}
+                        {isEditing ? (
+                          <TextField
+                            label="所属机构"
+                            value={formData.affiliation}
+                            onChange={handleChange('affiliation')}
+                            fullWidth
+                          />
+                        ) : (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                              所属机构
+                            </Typography>
+                            <Typography variant="body1">
+                              {formData.affiliation}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* 注册日期 */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            注册日期
+                          </Typography>
+                          <Typography variant="body1">
+                            {formData.registerDate}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+
+                    {/* 编辑/保存按钮 */}
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                      {isEditing ? (
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<SaveIcon />}
+                          onClick={handleSave}
+                        >
+                          保存更改
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<EditIcon />}
+                          onClick={handleEdit}
+                        >
+                          编辑信息
+                        </Button>
+                      )}
+                    </Box>
+                  </Stack>
                 </Stack>
               </CardContent>
             </Card>

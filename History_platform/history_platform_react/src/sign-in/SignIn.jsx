@@ -19,6 +19,9 @@ import ColorModeSelect from '../shared-theme/ColorModeSelect';
 import axios from 'axios';
 import { useUser } from '../UserProvider.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import DHlogo from '../../DH.svg'
+import { motion } from "framer-motion";
+
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -176,6 +179,53 @@ export default function SignIn(props) {
       <CssBaseline enableColorScheme />
       <SignInContainer direction="column" justifyContent="space-between">
         <ColorModeSelect sx={{ position: 'fixed', top: '1rem', right: '1rem' }} />
+        <Box sx={{ 
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          mt: 4,
+          gap: 2,
+        }}>
+          <motion.img 
+            src={DHlogo} 
+            alt="DH Logo" 
+            initial={{ opacity: 0, scale: 0, x: -50 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            transition={{
+              duration: 0.6,
+              delay: 0.2,
+              scale: { type: "spring", damping: 10, stiffness: 100 }
+            }}
+            style={{ 
+              width: '80px',
+              height: '80px',
+              objectFit: 'contain'
+            }}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0, x: 50 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            transition={{
+              duration: 0.6,
+              delay: 0.4,
+              scale: { type: "spring", damping: 10, stiffness: 100 }
+            }}
+          >
+            <Typography 
+              variant="h2"
+              sx={{ 
+                fontWeight: 'bold',
+                background: 'linear-gradient(45deg, #4A148C 10%, #9C27B0 50%, #E1BEE7 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                textShadow: '0 0 20px rgba(156, 39, 176, 0.1)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              数智文献平台
+            </Typography>
+          </motion.div>
+        </Box>
         <Card variant="outlined">
           <Typography component="h1" variant="h4" sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}>
             登录页面

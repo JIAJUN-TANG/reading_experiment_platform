@@ -12,22 +12,24 @@ import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useUser } from '../../UserProvider'
 
-
 const drawerWidth = 240;
 
 const Drawer = styled(MuiDrawer)({
   width: drawerWidth,
   flexShrink: 0,
+  whiteSpace: 'nowrap',
   boxSizing: 'border-box',
-  mt: 10,
   [`& .${drawerClasses.paper}`]: {
     width: drawerWidth,
     boxSizing: 'border-box',
+    position: 'fixed',
+    height: '100%',
+    left: 0,
   },
 });
 
 export default function SideMenu() {
-  const [open, setOpen] = React.useState(false); // 控制 Drawer 的显示状态
+  const [open, setOpen] = React.useState(false);
   const { userInfo } = useUser();
 
   const toggleDrawer = () => {
@@ -35,33 +37,49 @@ export default function SideMenu() {
   };
 
   return (
-    <Box>
+    <Box sx={{ position: 'absolute' }}>
       <IconButton 
         onClick={toggleDrawer}
         sx={{
-          mt: 1.25,
-          ml: 2,
-          p: 0, // 去掉内边距
-          minWidth: 0, // 去掉按钮的最小宽度
-          backgroundColor: 'transparent', // 设置背景为透明
-          border: 'none', // 去掉任何边框
+          left: 16,
+          top: 16,
+          zIndex: 1200,
+          p: 0,
+          minWidth: 0,
+          backgroundColor: 'transparent',
+          border: 'none',
+          transition: 'transform 0.5s ease-in-out',
+          transform: open ? 'rotate(180deg)' : 'none',
           '&:hover': {
-            backgroundColor: 'transparent', // 去掉 hover 背景
+            backgroundColor: 'transparent',
+            transform: `${open ? 'rotate(180deg)' : 'none'} scale(1.1)`,
           },
           '&:focus': {
-            outline: 'none', // 去掉焦点框
+            outline: 'none',
           },
         }}
       >
         <MenuIcon />
       </IconButton>
       <Drawer
-        variant="temporary" // 使用 temporary 模式，可以在点击外部区域时关闭
-        open={open} // 根据 open 状态来控制 Drawer 是否显示
-        onClose={toggleDrawer} // 添加 onClose 属性来处理关闭事件
+        variant="temporary"
+        open={open}
+        onClose={toggleDrawer}
         sx={{
           [`& .${drawerClasses.paper}`]: {
             backgroundColor: 'background.paper',
+            transform: open ? 'none' : 'translateX(-100%)',
+            transition: theme => theme.transitions.create(['transform'], {
+              duration: theme.transitions.duration.standard,
+              easing: theme.transitions.easing.easeInOut,
+            }),
+            boxShadow: open ? '4px 0px 8px rgba(0, 0, 0, 0.1)' : 'none',
+          },
+        }}
+        SlideProps={{
+          timeout: {
+            enter: 400,
+            exit: 300,
           },
         }}
       >
@@ -85,7 +103,7 @@ export default function SideMenu() {
           />
           <Box sx={{ mr: 'auto', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: '16px' }}>
-            {userInfo?.user_name || "用户名"}
+              {userInfo?.user_name || "用户名"}
             </Typography>
             <Typography
               variant="caption"

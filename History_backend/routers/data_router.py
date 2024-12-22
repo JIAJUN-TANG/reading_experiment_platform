@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Request, Body
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Body
 from fastapi.responses import JSONResponse
-from schemas import GetCatalogueRequest, OCRResults, ProcessPdfPagesRequest, ProcessTextRequest, SearchDataRequest, FileRequest
-from utils.file_processing import upload_file, get_file_list, perform_ocr, pdf_to_images, ocr_process, save_document_to_db, process_pdf_pages
-from utils.database import get_latest, get_count, search_data
+from schemas import GetCatalogueRequest, OCRResults, ProcessPdfPagesRequest, ProcessTextRequest, SearchDataRequest
+from utils.file_processing import perform_ocr, pdf_to_images, ocr_process, save_document_to_db, process_pdf_pages
+from utils.database import get_latest, get_count, search_data, get_usage_statistics
 import os
 import uuid
 
@@ -79,3 +79,12 @@ async def process_pdf_pages_endpoint(data: ProcessPdfPagesRequest, background_ta
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@data_router.get("/GetUsage/")
+async def get_usage_endpoint():
+    """获取用户使用统计数据的端点"""
+    try:
+        result = get_usage_statistics()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取使用统计失败：{str(e)}")
