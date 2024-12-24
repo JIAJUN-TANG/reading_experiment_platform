@@ -25,7 +25,7 @@ export default function GuideTable({ ocrResults, filePath }) {
 
   const columns = [
     { field: 'page', headerName: '页码', editable: true, flex: 1 },
-    { field: 'name', headerName: '名称', editable: true, flex: 4 },
+    { field: 'name', headerName: '名称', editable: true, flex: 6 },
   ];
 
   const processRowUpdate = (updatedRow, originalRow) => {
@@ -84,7 +84,7 @@ export default function GuideTable({ ocrResults, filePath }) {
 
   const handleConfirmDirectory = async () => {
     try {
-      const response = await axios.post("http://114.212.97.42:8000/SaveCatelogue/", {
+      const response = await axios.post("http://114.212.97.42:8000/file/SaveCatelogue/", {
         ocr_results: updatedOcrResults,
         file_path: filePath,
       });
@@ -130,7 +130,7 @@ export default function GuideTable({ ocrResults, filePath }) {
               startIcon={<Add />}
               onClick={handleAddRow}
               sx={{ mt: 1 }}
-              size="large"
+              size="small"
             >
               添加行
             </Button>
@@ -140,7 +140,7 @@ export default function GuideTable({ ocrResults, filePath }) {
               startIcon={<Delete />}
               onClick={handleDeleteRow} // 使用选中的 ID 删除行
               sx={{ mt: 1 }}
-              size="large"
+              size="small"
             >
               删除行
             </Button>
@@ -150,7 +150,7 @@ export default function GuideTable({ ocrResults, filePath }) {
               variant="contained"
               color="primary"
               sx={{ mt: 1 }}
-              size="large"
+              size="small"
               onClick={handleConfirmDirectory}
             >
               保存目录

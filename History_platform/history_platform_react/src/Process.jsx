@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { alpha } from '@mui/material/styles';
-import { CssBaseline, Box, Stack, Tabs, Tab, Typography, CircularProgress, Stepper, Step, StepLabel, StepContent, Button, Paper } from '@mui/material';
+import { CssBaseline, Box, Stack, Tabs, Tab, Typography, Stepper, Step, StepLabel, Button, Paper } from '@mui/material';
 import AppNavbar from './dashboard/components/AppNavbar';
 import Header from './dashboard/components/Header';
 import SideMenu from './dashboard/components/SideMenu';
@@ -9,14 +9,15 @@ import FileUploaderViewer from './FileUploaderViewer';  // 如果需要在其他
 import PageNavigatorCard from './PageSelect';
 import GuideTable from './GuideTable';
 import WriteToDatabaseCard from './SavetoDatabase';
-import TextFileUploader from './TextFileUploaderViewer'; // 导入新的组件
-import axios from 'axios';
+import axios from 'axios'; 
 import { chartsCustomizations, dataGridCustomizations, datePickersCustomizations, treeViewCustomizations } from './dashboard/theme/customizations';
 import FloatingChatButton from './AIDialog';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+import CheckIcon from '@mui/icons-material/Check';  // 导入勾的图标
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 
 
 const xThemeComponents = {
@@ -45,6 +46,36 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
+// 自定义步骤图标组件
+const CustomStepIcon = (props) => {
+  const { active, completed, className, icon } = props;
+  
+  return (
+    <Box
+      className={className}
+      sx={{
+        width: 32,
+        height: 32,
+        borderRadius: '50%',
+        backgroundColor: completed || active ? 'primary.main' : 'background.paper',
+        border: (theme) => `2px solid ${completed || active ? theme.palette.primary.main : theme.palette.grey[400]}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: completed || active ? 'common.white' : 'text.secondary',
+        fontWeight: 600,
+        fontSize: '14px',
+      }}
+    >
+      {completed ? (
+        <CheckIcon sx={{ fontSize: 20 }} />
+      ) : (
+        icon
+      )}
+    </Box>
+  );
+};
+
 export default function Process(props) {
   const [filePath, setFilePath] = useState(null);
   const [pageCount, setPageCount] = useState(null);
@@ -54,14 +85,15 @@ export default function Process(props) {
   const [tabIndex, setTabIndex] = useState(0);
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const [activeStep, setActiveStep] = useState(0);
+  const [pageSelectData, setPageSelectData] = useState({
+    startPage: '',
+    endPage: '',
+    language: ''
+  });
+  const [tabValue, setTabValue] = useState(0);
 
-  const handleTabChange = (event, newIndex) => {
-    setFilePath(null);
-    setPageCount(null);
-    setOcrResults(null);
-    setShowGuideTable(false);
-    setLoading(false);
-    setTabIndex(newIndex);
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
   };
 
   const handleUploadSuccess = (path, numPages) => {
@@ -71,15 +103,22 @@ export default function Process(props) {
 
   const handlePageRangeConfirm = async (startPage, endPage, language) => {
     setLoading(true);
+    setPageSelectData({
+      startPage,
+      endPage,
+      language
+    });
+    
     try {
       const response = await axios.post('http://114.212.97.42:8000/file/GetCatelogue/', {
         file_path: filePath,
         start_page: parseInt(startPage, 10),
         end_page: parseInt(endPage, 10),
-        language,
+        language: language,
       });
       setOcrResults(response.data.ocr_results);
       setShowGuideTable(true);
+      handleNext();
     } catch (error) {
       console.error('OCR解析失败：', error.response?.data || error.message);
       alert('目录解析失败，请重试！');
@@ -103,18 +142,16 @@ export default function Process(props) {
   // 定义步骤
   const steps = [
     {
-      label: '选择目录页面',
-      description: '请选择文献目录所在的页面范围',
+      label: '选择目录页码',
+      description: '请选择文献目录所在的PDF页码范围',
       component: (
         <PageNavigatorCard
           filePath={filePath}
           totalPages={pageCount}
           setOcrResults={setOcrResults}
-          onConfirm={(startPage, endPage, language) => {
-            handlePageRangeConfirm(startPage, endPage, language);
-            if (!loading) handleNext();
-          }}
+          onConfirm={handlePageRangeConfirm}
           loading={loading}
+          savedData={pageSelectData}
         />
       ),
     },
@@ -124,7 +161,8 @@ export default function Process(props) {
       component: (
         <GuideTable 
           ocrResults={ocrResults} 
-          filePath={filePath} 
+          filePath={filePath}
+          pageData={pageSelectData}
         />
       ),
     },
@@ -144,193 +182,183 @@ export default function Process(props) {
     <AppTheme {...props} themeComponents={xThemeComponents}>
       <CssBaseline enableColorScheme />
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-        {/* 侧边导航 */}
-          <SideMenu />
-          <AppNavbar />
-          <Box
-            component="main"
-            sx={(theme) => ({
-              flexGrow: 1,
-              backgroundColor: theme.vars
-                ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
-                : alpha(theme.palette.background.default, 1),
-              overflow: 'auto',
-            })}
-          >
-            <Stack
-            spacing={2}
-            sx={{
-              alignItems: 'center',
-              mx: 3,
-              pl: 5,
-              pr: 5,
-              pb: 5,
-              mt: { xs: 8, md: 1 },
-              width: '100%',
-            }}
-          >
+        <SideMenu />
+        <AppNavbar />
+        <Box
+          component="main"
+          sx={(theme) => ({
+            flexGrow: 1,
+            backgroundColor: theme.vars
+              ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
+              : alpha(theme.palette.background.default, 1),
+            overflow: 'auto',
+          })}
+        >
+          <Stack spacing={2} sx={{ alignItems: 'center', mx: 3, pl: 5, pr: 5, pb: 5, mt: { xs: 8, md: 1 } }}>
             <Header />
           </Stack>
 
-        {/* 标签页 */}
-        <Tabs
-          value={tabIndex}
-          onChange={handleTabChange}
-          aria-label="Process tabs"
-          centered
-          sx={{
-            '& .MuiTab-root': {
-              minWidth: 0,
-              mx: 3,
-              paddingX: 2,
-              border: 'none',
-            },
-            '& .MuiTabs-indicator': {
-              height: 3,
-            },
-          }}
-        >
-          <Tab label="带目录文献" />
-          <Tab label="无目录文献" />
-          <Tab label="文本文献" />
-        </Tabs>
+          <Box sx={{
+            px: 4,
+            display: 'flex',
+            justifyContent: 'center',  // 居中显示
+            width: '100%'
+          }}>
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange}
+              aria-label="process tabs"
+              sx={{
+                '& .MuiTab-root': {
+                  fontSize: '1rem',
+                  fontWeight: 500,
+                  px: 6,  // 增加标签之间的水平间距
+                  minWidth: 120,  // 设置最小宽度
+                },
+                '& .MuiTabs-flexContainer': {
+                  gap: 4,  // 增加标签之间的间距
+                }
+              }}
+            >
+              <Tab label="目录精读" />
+              <Tab label="全文速读" />
+              <Tab label="文本入库" />
+            </Tabs>
+          </Box>
 
-        {/* 带目录文献 */}
-        <TabPanel value={tabIndex} index={0}>
-          <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'row', p: 4 }}>
-            {!filePath ? (
-              <Stack spacing={2} sx={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
-                <FileUploaderViewer onUploadSuccess={handleUploadSuccess} />
-              </Stack>
-            ) : (
-              <Box sx={{ display: 'flex', width: '100%', gap: 2 }}>
-                {/* PDF 预览部分 */}
-                <Box
-                  sx={{
-                    width: '45%',
-                    p: 2,
-                    mr: 1,
-                    textAlign: 'center',
-                    border: '2px dashed #ccc',
-                    borderRadius: '8px',
-                    height: '100vh',
-                    overflow: 'auto'
-                  }}
-                >
-                  <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
-                    <div style={{ height: '100%' }}>
-                      <Viewer
-                        fileUrl={`http://114.212.97.42:8000${filePath}`}
-                        plugins={[defaultLayoutPluginInstance]}
-                      />
-                    </div>
-                  </Worker>
-                </Box>
+          <TabPanel value={tabValue} index={0}>
+            <Box sx={{ display: 'flex', width: '100%', gap: 2, p: 4 }}>
+              {!filePath ? (
+                <Stack spacing={2} sx={{ alignItems: 'center', width: '100%' }}>
+                  <FileUploaderViewer onUploadSuccess={handleUploadSuccess} />
+                </Stack>
+              ) : (
+                <Box sx={{ display: 'flex', width: '100%', gap: 2 }}>
+                  <Box sx={{ width: '45%', p: 2, border: '2px dashed #ccc', borderRadius: '8px', height: '100vh', overflow: 'auto' }}>
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+                      <div style={{ height: '100%' }}>
+                        <Viewer fileUrl={`http://114.212.97.42:8000${filePath}`} plugins={[defaultLayoutPluginInstance]} />
+                      </div>
+                    </Worker>
+                  </Box>
 
-                {/* 右侧操作区域 - 使用 Stepper */}
-                <Box sx={{ width: '55%', height: '100vh', position: 'relative', overflow: 'auto' }}>
-                  <Stepper activeStep={activeStep} orientation="vertical">
-                    {steps.map((step, index) => (
-                      <Step key={step.label}>
-                        <StepLabel>
-                          <Typography variant="subtitle1">{step.label}</Typography>
-                        </StepLabel>
-                        <StepContent>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {step.description}
-                          </Typography>
-                          {step.component}
-                          <Box sx={{ mb: 2, mt: 2 }}>
-                            <div>
+                  <Box sx={{ width: '55%', height: '100vh', overflow: 'auto', pr: 2 }}>
+                    <Stepper 
+                      activeStep={activeStep} 
+                      alternativeLabel
+                      sx={{ 
+                        mb: 4,
+                        '& .MuiStepConnector-line': {
+                          marginTop: 0,
+                        },
+                        '& .MuiStepConnector-root': {
+                          top: '16px',
+                          left: 'calc(-50% + 20px)',
+                          right: 'calc(50% + 20px)',
+                        },
+                        '& .MuiStepLabel-iconContainer': {
+                          paddingRight: 0,
+                        },
+                        '& .MuiStepLabel-labelContainer': {
+                          marginTop: '8px',
+                        },
+                        '& .MuiStep-root': {
+                          padding: '0 16px',
+                        }
+                      }}
+                    >
+                      {steps.map((step, index) => (
+                        <Step key={step.label}>
+                          <StepLabel StepIconComponent={CustomStepIcon}>
+                            <Typography 
+                              variant="subtitle2" 
+                              sx={{ 
+                                color: activeStep === index ? 'primary.main' : 'text.secondary',
+                                fontWeight: activeStep === index ? 600 : 400
+                              }}
+                            >
+                              {step.label}
+                            </Typography>
+                          </StepLabel>
+                        </Step>
+                      ))}
+                    </Stepper>
+
+                    <Box sx={{ mt: 2 }}>
+                      {steps.map((step, index) => (
+                        activeStep === index && (
+                          <Box key={step.label}>
+                            <Typography 
+                              color="text.secondary" 
+                              sx={{ 
+                                mb: 2,
+                                textAlign: 'center',  // 文字居中
+                                width: '100%'  // 确保宽度占满
+                              }}
+                            >
+                              {step.description}
+                            </Typography>
+                            {step.component}
+                            <Box sx={{ mb: 2, mt: 2, display: 'flex', gap: 1 }}>
                               <Button
                                 variant="contained"
                                 onClick={handleNext}
-                                sx={{ mt: 1, mr: 1 }}
-                                disabled={index === 0 && !ocrResults} // 第一步需要有OCR结果才能继续
+                                disabled={index === 0 && !ocrResults}
                               >
-                                {index === steps.length - 1 ? '完成' : '下一步'}
+                                {index === steps.length - 1 ? (
+        '完成'
+      ) : (
+        <>
+          <NavigateNextIcon />
+          {' 下一步'}
+        </>)}
                               </Button>
                               <Button
                                 disabled={index === 0}
                                 onClick={handleBack}
-                                sx={{ mt: 1, mr: 1 }}
+                                variant="outlined"
                               >
                                 返回
                               </Button>
-                            </div>
+                            </Box>
                           </Box>
-                        </StepContent>
-                      </Step>
-                    ))}
-                  </Stepper>
-                  {activeStep === steps.length && (
-                    <Paper square elevation={0} sx={{ p: 3 }}>
-                      <Typography>所有步骤已完成</Typography>
-                      <Button onClick={handleReset} sx={{ mt: 1, mr: 1 }}>
-                        重新开始
-                      </Button>
-                    </Paper>
-                  )}
+                        )
+                      ))}
+                      {activeStep === steps.length && (
+                        <Paper square elevation={0} sx={{ p: 3, bgcolor: 'success.light', color: 'common.white' }}>
+                          <Typography>所有步骤已完成</Typography>
+                          <Button 
+                            onClick={handleReset} 
+                            sx={{ 
+                              mt: 1, 
+                              bgcolor: 'common.white',
+                              color: 'success.main',
+                              '&:hover': {
+                                bgcolor: 'common.white',
+                                opacity: 0.9
+                              }
+                            }}
+                          >
+                            重新开始
+                          </Button>
+                        </Paper>
+                      )}
+                    </Box>
+                  </Box>
                 </Box>
-              </Box>
-            )}
-          </Box>
-        </TabPanel>
-
-        {/* 无目录文献 */}
-        <TabPanel value={tabIndex} index={1}>
-          <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'row', p: 4 }}>
-            {!filePath ? (
-              <Stack spacing={2} sx={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
-                <FileUploaderViewer onUploadSuccess={handleUploadSuccess} />
-              </Stack>
-            ) : (
-              <Box sx={{ display: 'flex', width: '100%', gap: 2 }}>
-                {/* PDF 预览部分 */}
-                <Box
-                  sx={{
-                    width: '45%',
-                    p: 2,
-                    mr: 1,
-                    textAlign: 'center',
-                    border: '2px dashed #ccc',
-                    borderRadius: '8px',
-                    height: '100vh',
-                    overflow: 'auto'
-                  }}
-                >
-                  <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
-                    <div style={{ height: '100%' }}>
-                      <Viewer
-                        fileUrl={`http://114.212.97.42:8000${filePath}`}
-                        plugins={[defaultLayoutPluginInstance]}
-                      />
-                    </div>
-                  </Worker>
-                </Box>
-
-                {/* 右侧操作区域 */}
-                <Box sx={{ width: '55%', height: '100vh', position: 'relative' }}>
-                  <WriteToDatabaseCard filePath={filePath} type="Without"/>
-                </Box>
-              </Box>
-            )}
-          </Box>
-        </TabPanel>
-
-        {/* 文本文献 */}
-        <TabPanel value={tabIndex} index={2}>
-        <Box sx={{ flexGrow: 1, display: 'absolute', flexDirection: 'row', p: 4 }}>
-            <Stack spacing={2} sx={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
-              <TextFileUploader onUploadSuccess={handleUploadSuccess} />
-            </Stack>
-          </Box>
-          <Box sx={{ width: '100%', display: 'absolute', justifyContent: 'center', py: 10, mx: 'auto' }}>
-            {filePath && (
-              <WriteToDatabaseCard filePath={filePath} type="text"/>
-            )}
-          </Box>
-        </TabPanel>
+              )}
+            </Box>
+          </TabPanel>
+          <TabPanel value={tabValue} index={1}>
+            <Box sx={{ p: 4 }}>
+              <Typography>文献标注功能开发中...</Typography>
+            </Box>
+          </TabPanel>
+          <TabPanel value={tabValue} index={2}>
+            <Box sx={{ p: 4 }}>
+              <Typography>文献分析功能开发中...</Typography>
+            </Box>
+          </TabPanel>
         </Box>
         <FloatingChatButton />
       </Box>
