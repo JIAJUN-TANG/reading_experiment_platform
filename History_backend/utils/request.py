@@ -1,17 +1,11 @@
 from openai import OpenAI
 
-def send_request(payload, service):
+def send_request(headers, payload):
     try:
-        if service == "ChatGPT":
-            client = OpenAI(
-                api_key="sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1",
-                base_url="https://api.chatanywhere.org/v1"
-            )
-        # elif service == "Doubao":
-        #     client = OpenAI(
-        #         api_key="af32cad5-249b-4518-b5f8-46103b2c82c3",
-        #         base_url="https://ark.cn-beijing.volces.com/api/v3"
-        #     )
+        client = OpenAI(
+            api_key=headers.get("Authorization").replace("Bearer ", ""),
+            base_url="https://api.chatanywhere.org/v1"
+        )
         
         response = client.chat.completions.create(
             model=payload["model"],

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Body
 from fastapi.responses import JSONResponse
 from schemas import GetCatalogueRequest, OCRResults, ProcessPdfPagesRequest, ProcessTextRequest, SearchDataRequest
-from utils.file_processing import perform_ocr, pdf_to_images, ocr_process, save_document_to_db, process_pdf_pages
+from utils.file_processing import perform_ocr, pdf_to_images, save_document_to_db, process_pdf_pages
 from utils.database import get_latest, get_count, search_data, get_usage_statistics
 import os
 import uuid

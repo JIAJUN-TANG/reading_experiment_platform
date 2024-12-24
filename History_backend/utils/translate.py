@@ -68,9 +68,9 @@ async def save_results_to_cache(file_path: str, page: int, ocr_text: str, transl
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save results to cache: {str(e)}")
     
-async def retry_request(payload, service, max_retries=5, delay=2):
+async def retry_request(headers, payload, max_retries=5, delay=2):
     for attempt in range(max_retries):
-        response = send_request(payload, service)
+        response = send_request(headers, payload)
         if response:
             return response
         if attempt < max_retries - 1:
@@ -89,6 +89,11 @@ async def translate_text(file_path, email, page, language, service):
         if service == "ChatGPT":
             model = "gpt-4o-mini"
         
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1"
+        }
+        
         ocr_payload = {
             "model": model,
             "messages": [
@@ -102,7 +107,7 @@ async def translate_text(file_path, email, page, language, service):
             "presence_penalty": 0
         }
         
-        ocr_response = await retry_request(ocr_payload, service)
+        ocr_response = await retry_request(headers, ocr_payload)
         if not ocr_response:
             raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
 
@@ -126,7 +131,7 @@ async def translate_text(file_path, email, page, language, service):
             "presence_penalty": 0
         }
 
-        translation_response = await retry_request(translation_payload, service)
+        translation_response = await retry_request(headers, translation_payload)
         if not translation_response:
             raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 

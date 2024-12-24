@@ -75,7 +75,8 @@ async def get_full_text_endpoint(request: FileRequest):
 @file_router.post("/GetCatelogue/")
 async def get_catalogue_endpoint(request: GetCatalogueRequest):
     try:
-        result = get_catelogue(request)
-        return result
+        file_path = f".{request.file_path}"
+        result = await get_catelogue(file_path, request.start_page, request.end_page, request.language)
+        return {"ocr_results": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{str(e)}")

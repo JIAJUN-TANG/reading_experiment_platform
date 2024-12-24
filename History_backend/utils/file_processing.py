@@ -1,33 +1,19 @@
 import os
 import uuid
 from fastapi import UploadFile, HTTPException
-from modelscope import AutoModel, AutoTokenizer
 from PIL import Image
 from io import BytesIO
 import fitz
-from surya.ocr import run_ocr
-from surya.model.detection.model import load_model as load_det_model, load_processor as load_det_processor
-from surya.model.recognition.model import load_model as load_rec_model
-from surya.model.recognition.processor import load_processor as load_rec_processor
 from utils.database import get_db_connection
 from typing import List, Dict
-import time
 import json
 from utils.request import send_request
+import asyncio
+from paddlex import create_pipeline
 
 
-det_processor, det_model = load_det_processor(), load_det_model()
-rec_model, rec_processor = load_rec_model(), load_rec_processor()
-
-tokenizer = AutoTokenizer.from_pretrained("/home/jiajun/公共/jiajun/History_backend/GOT", trust_remote_code=True)
-model = AutoModel.from_pretrained(
-    "/home/jiajun/公共/jiajun/History_backend/GOT",
-    trust_remote_code=True,
-    low_cpu_mem_usage=True,
-    device_map="cuda",
-    use_safetensors=True,
-    eos_token_id=tokenizer.eos_token_id,
-).eval().cuda()
+# 初始化OCR pipeline
+ocr_pipeline = create_pipeline(pipeline="OCR")
 
 async def upload_file(email: str, file: UploadFile):
     CACHED_DIR = os.path.abspath("./cached")
@@ -52,7 +38,6 @@ async def get_file_list(email: str):
 async def pdf_to_images(pdf_path: str, start_page: int, end_page: int):
     doc = fitz.open(pdf_path)
     images = []
-    images_list = []
     output_dir = "./images"
     os.makedirs(output_dir, exist_ok=True)
     
@@ -62,70 +47,112 @@ async def pdf_to_images(pdf_path: str, start_page: int, end_page: int):
         img = Image.open(BytesIO(pix.tobytes("png")))
         image_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(pdf_path))[0]}_{page_num + 1}.png")
         img.save(image_path, format="PNG")
-        images.append(img)
-        images_list.append(image_path)
-    
+        images.append(image_path)
+
     doc.close()
-    return images, images_list
+    return images
 
-async def perform_ocr(images: List[Image.Image], language: str) -> List[str]:
-    results = {}
-    for image in images:
-        res = model.chat(tokenizer, image, ocr_type="ocr")
+async def process_single_image_ocr(image):
+    """处理单个图像的OCR"""
+    try:
+        output = ocr_pipeline.predict(image)
+        for res in output:
+            text = "".join(_ for _ in res["rec_text"])
+        return text
+    except Exception as e:
+        print(f"OCR Error: {e}")
+        return None
+
+async def process_images(all_texts: str, language: str):
+    """将所有OCR文本一起发送给GPT处理"""
+    try:
         headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1"
-    }
+            "Content-Type": "application/json",
+            "Authorization": "Bearer sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1"
+        }
+        
         payload = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {
-                "role": "system",
-                "content": f"你是一位历史研究的专家，精通{language}，并且熟悉目录整理。"
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "格式要求：1.除了给定文本，请不要增加其他内容。2.以及目录和子目录（如附）都应当作为一条记录返回，并使用目录页码。3.目录应当尽可能完整，包含：前后的所有文本，并删除目录前的序号数字，但忽略目录中的人名，如朱德、张闻天等。4.部分目录的时间在页码之后，请你将其放置于标题后，并且不要将汉字数字改为阿拉伯数字。5.请返回dict格式，例如{'页码':'目录文本', '页码':'目录文本'...}。6.请删除内容中的\n和空格。"
-                    }
-                ]
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"请你精确识别目录内容，并按照格式要求返回结果：{res}"
-                    }
-                ]
-            }
-        ],
-        "top_p": 1,
-        "temperature": 0,
-        "frequency_penalty": 0,
-        "presence_penalty": 0
-    }
+            "model": "gpt-4o-mini",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"你是一位历史研究的专家，精通{language}，并且熟悉目录整理。请使用双引号而不是单引号来包裹JSON的键和值。"
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "格式要求：1.除了给定文本，请不要增加其他内容。2.以及目录和子目录（如附）都应当作为一条记录返回，并使用目录页码。3.目录应当尽可能完整，包含：前后的所有文本，并删除目录前的序号数字，但忽略目录中的人名，如朱德、张闻天等。4.部分目录的时间在页码之后，请你将其放置于标题后，并且不要将汉字数字改为阿拉伯数字。5.请返回dict格式，使用双引号，例如{\"页码\":\"目录文本\", \"页码\":\"目录文本\"...}。6.请删除内容中的\\n和空格。"}]
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": f"请你精确识别目录内容，并按照格式要求返回结果：{all_texts}"}]
+                }
+            ],
+            "top_p": 1,
+            "temperature": 0,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        }
+        
         response = send_request(headers, payload)
-        if not response or response.status_code != 200:
-            time.sleep(2)  # 等待 2 秒后重试
+        if not response or not hasattr(response, 'choices'):
+            await asyncio.sleep(2)
             response = send_request(headers, payload)
-        try:
-            response_content = response.json().get("choices", [])[0].get("message", {}).get("content", "").replace("json", "").replace("python", "").replace("'", '"')
-            result = json.loads(response_content)  # 返回字典
-            results.update(result)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="目录读取失败！")
-    return results
+            
+        if response and hasattr(response, 'choices'):
+            try:
+                response_content = response.choices[0].message.content
+                response_content = response_content.strip()
+                if response_content.startswith('```') and response_content.endswith('```'):
+                    response_content = response_content[3:-3].strip()
+                
+                response_content = response_content.replace("'", '"')
+                
+                if response_content.startswith('{') and response_content.endswith('}'):
+                    # 处理重复页码的问题
+                    json_data = json.loads(response_content)
+                    
+                    # 创建新的字典，只保留每个页码的第一条记录
+                    processed_data = {}
+                    for page_num, content in json_data.items():
+                        if page_num not in processed_data:
+                            processed_data[page_num] = content
+                    
+                    return processed_data
+                return None
+            except json.JSONDecodeError as e:
+                print(f"JSON parsing error: {e}")
+                print(f"Response content: {response_content}")
+                return None
+        
+        return None
+    except Exception as e:
+        print(f"Processing error: {e}")
+        return None
 
-async def ocr_process(images: List[str], langs:str) -> str:
-    full_text = ""
-    for image in images:
-        predictions = run_ocr([image], [[langs]], det_model, det_processor, rec_model, rec_processor)
-        for text_line in predictions[0].text_lines:
-            full_text += text_line.text + "\n"
-    return full_text
+async def perform_ocr(images: List[Image.Image], language: str):
+    """并发处理多个图像"""
+    try:
+        # 并发执行OCR
+        ocr_tasks = [process_single_image_ocr(image) for image in images]
+        ocr_results = await asyncio.gather(*ocr_tasks)
+        
+        # 过滤掉None结果并合并所有文本
+        all_texts = "\n".join([text for text in ocr_results if text])
+        
+        if not all_texts:
+            raise HTTPException(status_code=400, detail="OCR处理失败！")
+        
+        # 将合并后的文本发送给GPT处理
+        results = await process_images(all_texts, language)
+        
+        if not results:
+            raise HTTPException(status_code=400, detail="目录读取失败！")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in perform_ocr: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 async def save_document_to_db(pdf_path: str, user_name: str, series_name: str, title: str, start_page: int, end_page: int, full_text: str, pdf_blob: bytes, date: str):
     conn = get_db_connection()
@@ -163,8 +190,8 @@ async def process_pdf_pages(pdf_path: str, ocr_results: Dict, user_name: str, se
         with open(split_pdf_path, "rb") as f:
             pdf_blob = f.read()
 
-        images, images_list = await pdf_to_images(pdf_path, pdf_start_page, pdf_end_page)
-        full_text = await ocr_process(images, language)
+        images = await pdf_to_images(pdf_path, pdf_start_page, pdf_end_page)
+        full_text = await perform_ocr(images, language)
 
         await save_document_to_db(pdf_path, user_name, series_name, title, pdf_start_page-page_offset, pdf_end_page-page_offset, full_text, pdf_blob, "")
 
@@ -174,6 +201,6 @@ async def process_pdf_pages(pdf_path: str, ocr_results: Dict, user_name: str, se
     doc.close()
 
 async def get_catelogue(file_path, start_page, end_page, language):
-    images, images_list = await pdf_to_images(file_path, start_page, end_page)
+    images = await pdf_to_images(file_path, start_page, end_page)
     ocr_results = await perform_ocr(images, language)
     return ocr_results
