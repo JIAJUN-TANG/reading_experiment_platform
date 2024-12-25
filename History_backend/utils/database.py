@@ -1,4 +1,5 @@
 import sqlite3
+import aiosqlite
 
 
 def get_db_connection():
@@ -30,17 +31,49 @@ def create_table():
 
 create_table()
 
-def save_document_to_db(document_uuid: str,  user_name: str, series_name: str, file_name: str, title: str, start_page: int, end_page: int, full_text: str, pdf_blob: bytes, insert_date: str, date: str):
+def create_user_table(email: str):
+    """ 创建文献数据库的数据表 """
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''INSERT INTO documents (
-                        uuid, user_name, series_name, file_name, title, 
-                        start_page, end_page, full_text, file, insert_date, date) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                   (document_uuid, user_name, series_name, file_name, 
-                    title, start_page, end_page, full_text, pdf_blob, insert_date, date))
+    cursor.execute(
+        f'''CREATE TABLE IF NOT EXISTS {email} (
+            uuid TEXT PRIMARY KEY,
+            user_name TEXT,
+            series_name TEXT NOT NULL,
+            file_name TEXT,
+            title TEXT,
+            start_page INTEGER NOT NULL,
+            end_page INTEGER NOT NULL,
+            full_text TEXT NOT NULL,
+            file BLOB NOT NULL,
+            insert_date TEXT NOT NULL,
+            date TEXT
+        )'''
+    )
     conn.commit()
     conn.close()
+
+async def save_document_to_db(document_uuid: str, user_name: str, series_name: str, file_name: str, 
+                            title: str, start_page: int, end_page: int, full_text: str, 
+                            pdf_blob: bytes, insert_date: str, date: str):
+    """
+    异步保存文档到数据库
+    """
+    try:
+        async with aiosqlite.connect('/mnt/hdd/local_database.db') as db:
+            await db.execute('''
+                INSERT INTO documents (uuid, user_name, series_name, file_name, title, 
+                                     start_page, end_page, full_text, file, insert_date, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (document_uuid, user_name, series_name, file_name, title, 
+                  start_page, end_page, full_text, pdf_blob, insert_date, date))
+            
+            await db.commit()
+            return True
+            
+    except Exception as e:
+        print(f"保存到数据库时出错: {e}")
+        return False
 
 def create_user_table():
     """ 创建用户数据库的数据表 """

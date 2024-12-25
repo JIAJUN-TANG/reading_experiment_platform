@@ -5,7 +5,6 @@ from PIL import Image
 from io import BytesIO
 import fitz
 from utils.database import save_document_to_db
-from typing import List
 import json
 from utils.request import send_request
 import asyncio
@@ -37,22 +36,19 @@ async def get_file_list(email: str):
     files = os.listdir(user_dir)
     return {"files": files}
 
-async def pdf_to_images(pdf_path: str, start_page: int, end_page: int):
+async def pdf_to_images(pdf_path: str, page_num: str):
     doc = fitz.open(pdf_path)
-    images = []
     output_dir = "./images"
     os.makedirs(output_dir, exist_ok=True)
     
-    for page_num in range(start_page - 1, end_page):
-        page = doc.load_page(page_num)
-        pix = page.get_pixmap(dpi=500)
-        img = Image.open(BytesIO(pix.tobytes("png")))
-        image_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(pdf_path))[0]}_{page_num + 1}.png")
-        img.save(image_path, format="PNG")
-        images.append(image_path)
+    page = doc.load_page(page_num-1)
+    pix = page.get_pixmap(dpi=500)
+    img = Image.open(BytesIO(pix.tobytes("png")))
+    image_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(pdf_path))[0]}_{page_num + 1}.png")
+    img.save(image_path, format="PNG")
 
     doc.close()
-    return images
+    return img
 
 async def process_single_image_ocr(image):
     """处理单个图像的OCR"""
@@ -131,12 +127,11 @@ async def process_images(all_texts: str, language: str):
         print(f"Processing error: {e}")
         return None
 
-async def perform_ocr(images: List[Image.Image], language: str):
+async def perform_ocr(image, language):
     """并发处理多个图像"""
     try:
         # 并发执行OCR
-        ocr_tasks = [process_single_image_ocr(image) for image in images]
-        ocr_results = await asyncio.gather(*ocr_tasks)
+        ocr_results = await process_single_image_ocr(image)
         
         # 过滤掉None结果并合并所有文本
         all_texts = "\n".join([text for text in ocr_results if text])
@@ -157,8 +152,11 @@ async def perform_ocr(images: List[Image.Image], language: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 async def get_catelogue(file_path, start_page, end_page, language):
-    images = await pdf_to_images(file_path, start_page, end_page)
-    ocr_results = await perform_ocr(images, language)
+    ocr_results = {}
+    for page_num in range(start_page, end_page):
+        image = await pdf_to_images(file_path, page_num)
+        result = await perform_ocr(image, language)
+        ocr_results.update(result)
     return ocr_results
 
 async def save_catelogue(file_path: str, ocr_results: dict):
@@ -189,111 +187,43 @@ async def save_catelogue(file_path: str, ocr_results: dict):
         print(f"Error saving catalogue: {e}")
         raise HTTPException(status_code=500, detail=f"保存目录失败：{str(e)}")
 
-async def process_pdf_pages(pdf_path: str, ocr_results: dict, user_name: str, series_name: str, content_page: int, task_id: str):
-    """
-    处理PDF页面并保存到数据库，按页码范围创建任务
-    Args:
-        pdf_path: PDF文件路径
-        ocr_results: OCR识别结果
-        user_name: 用户名
-        series_name: 系列名称
-        content_page: 正文第一页在PDF中的实际页码
-        task_id: 任务ID
-    """
-    try:
-        pdf_document = fitz.open(pdf_path)
-        total_pages = len(pdf_document)
+async def process_pdf_pages(file_path: str, ocr_results: dict, user_name: str, series_name: str, content_page: int):
+    doc = fitz.open(file_path)
+    
+    sorted_ocr_results = sorted(ocr_results.items(), key=lambda x: int(x[0].replace("页码", "")))
+    ocr_first_page = int(sorted_ocr_results[0][0].replace("页码", ""))
+    page_offset = int(content_page) - ocr_first_page
 
-        # 将页码转换为整数并排序
-        page_numbers = sorted([int(page_num.replace("页码", "")) for page_num in ocr_results.keys()])
+    for i in range(len(sorted_ocr_results)):
+        page_key, title = sorted_ocr_results[i]
+        start_page = int(page_key.replace("页码", ""))
+        pdf_start_page = start_page + page_offset
         
-        # 计算页码偏移量：content_page 是 PDF 中的实际页码，对应目录中的第1页
-        offset = int(content_page) - 1
+        end_page = int(sorted_ocr_results[i + 1][0].replace("页码", "")) - 1 if i + 1 < len(sorted_ocr_results) else len(doc)-page_offset
+        pdf_end_page = end_page + page_offset
+
+        split_pdf = fitz.open()
+        split_pdf.insert_pdf(doc, from_page=pdf_start_page-1, to_page=pdf_end_page-1)
+
+        split_pdf_path = f"{uuid.uuid4()}.pdf"
+        split_pdf.save(split_pdf_path)
+        with open(split_pdf_path, "rb") as f:
+            pdf_blob = f.read()
+
+        full_text = ""
+        for page_num in range(pdf_start_page, pdf_end_page):
+            image = await pdf_to_images(file_path, page_num)
+            text = await process_single_image_ocr(image)
+            full_text += f"<SEP>{text}<SEP>"
+        document_uuid = str(uuid.uuid4())
+        insert_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 创建任务范围，应用页码偏移
-        tasks = []
-        for i in range(len(page_numbers)):
-            # 将目录页码转换为PDF实际页码
-            start_page = int(page_numbers[i]) + offset
-            
-            # 如果是最后一个页码，结束页就是下一个目录页码减1
-            if i < len(page_numbers) - 1:
-                end_page = int(page_numbers[i + 1]) + offset - 1
-            else:
-                end_page = start_page  # 最后一个目录项只处理单页
+        await save_document_to_db(document_uuid, user_name, series_name, os.path.splitext(os.path.basename(file_path))[0], title, pdf_start_page-page_offset, pdf_end_page-page_offset, full_text, pdf_blob, insert_date, "")
 
-            # 获取当前范围的标题（使用原始目录页码）
-            current_title = ocr_results[f"{page_numbers[i]}"]
-            tasks.append((start_page, end_page, current_title, page_numbers[i]))  # 保存原始页码
+        os.remove(split_pdf_path)
+        split_pdf.close()
 
-        # 处理每个任务范围
-        total_tasks = len(tasks)
-        current_task = 0
+    doc.close()
 
-        for start_page, end_page, title, original_page in tasks:
-            try:
-                current_task += 1
-                progress_tracker[task_id] = {
-                    "current": current_task,
-                    "total": total_tasks,
-                    "completed": False,
-                    "current_range": f"处理页码 {original_page}（PDF页 {start_page}-{end_page}）"
-                }
-
-                if start_page >= total_pages or end_page >= total_pages:
-                    print(f"警告: PDF页码范围 {start_page}-{end_page} 超出PDF范围，跳过此范围")
-                    continue
-
-                # 创建新的PDF文档来存储当前页
-                output_pdf = fitz.open()
-                output_pdf.insert_pdf(pdf_document, from_page=start_page, to_page=start_page)
-                
-                # 将PDF转换为字节
-                pdf_bytes = output_pdf.write()
-                output_pdf.close()
-
-                # 将PDF页面转换为图像并处理
-                for page_num in range(start_page, end_page + 1):
-                    images = await pdf_to_images(pdf_path, page_num, page_num)
-                    if not images:
-                        print(f"警告: PDF页码 {page_num} 图像转换失败，跳过此页")
-                        continue
-
-                    full_text = await process_single_image_ocr(images[0])
-                    if not full_text:
-                        print(f"警告: PDF页码 {page_num} OCR提取失败，跳过此页")
-                        continue
-
-                    # 生成唯一UUID和时间戳
-                    document_uuid = str(uuid.uuid4())
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 保存到数据库，使用当前页的PDF内容
-                    await save_document_to_db(
-                        document_uuid=document_uuid,
-                        user_name=user_name,
-                        series_name=series_name,
-                        file_name=os.path.basename(pdf_path),
-                        title=title,
-                        start_page=original_page,
-                        end_page=original_page,
-                        full_text=full_text,
-                        pdf_blob=pdf_bytes,  # 使用当前页的PDF内容
-                        insert_date=current_time,
-                        date=current_time  # 如果需要不同的日期格式，可以在这里修改
-                    )
-
-            except Exception as e:
-                print(f"处理页码范围 {start_page}-{end_page} 时出错: {e}")
-                continue
-
-        # 关闭PDF文档
-        pdf_document.close()
-        progress_tracker[task_id]["completed"] = True
-        return {"status": "success", "message": "PDF处理完成"}
-
-    except Exception as e:
-        print(f"PDF处理错误: {e}")
-        if task_id in progress_tracker:
-            progress_tracker[task_id]["completed"] = True
-        raise HTTPException(status_code=500, detail=str(e))
+async def process_all_pdf_pages(file_path: str, user_name: str, series_name: str, content_page: int):
+    pass

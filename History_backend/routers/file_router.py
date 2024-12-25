@@ -1,13 +1,14 @@
 import os
-from fastapi import APIRouter, HTTPException, UploadFile, Form, File, BackgroundTasks, WebSocket
+from fastapi import APIRouter, HTTPException, UploadFile, Form, File
 from schemas import FileRequest, GetCatalogueRequest, OCRResults, ProcessPdfPagesRequest
 from utils.database import get_file, get_full_text
-from utils.file_processing import get_file_list, upload_file, get_catelogue, save_catelogue, process_pdf_pages
+from utils.file_processing import get_file_list, upload_file, get_catelogue, save_catelogue, process_pdf_pages, process_all_pdf_pages
 from fastapi.responses import StreamingResponse, JSONResponse
 from io import BytesIO
 import json
-import uuid
+from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import multiprocessing
 
 
 file_router = APIRouter()
@@ -94,94 +95,61 @@ async def save_catelogue_endpoint(request: OCRResults):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{str(e)}")
-    
-@file_router.websocket("/ws/progress/{task_id}")
-async def progress_websocket(websocket: WebSocket, task_id: str):
-    await websocket.accept()
-    try:
-        while True:
-            if task_id in progress_tracker:
-                progress = progress_tracker[task_id]
-                await websocket.send_json(progress)
-                if progress["completed"]:
-                    del progress_tracker[task_id]
-                    break
-            await asyncio.sleep(0.5)
-    except WebSocketDisconnect:
-        if task_id in progress_tracker:
-            del progress_tracker[task_id]
 
 @file_router.post("/ProcessPdfPages/")
-async def process_pdf_pages_endpoint(data: ProcessPdfPagesRequest, background_tasks: BackgroundTasks):
-    """
-    处理PDF页面的端点
-    Args:
-        data: 包含处理所需信息的请求对象
-        background_tasks: 后台任务对象
-    """
+async def process_pdf_pages_endpoint(data: ProcessPdfPagesRequest):
+    """处理PDF页面的端点"""
     try:
-        # 1. 构建文件路径
-        file_name = os.path.splitext(os.path.basename(data.file_path))[0]
-        parent_dir = os.path.dirname(data.file_path).lstrip("/")
-        target_directory = os.path.join(parent_dir, file_name)
+        # 获取CPU核心数，设置线程数
+        num_threads = multiprocessing.cpu_count() * 2
+        file_path = os.path.join(".", data.file_path.lstrip("/"))
         
-        # 2. 确保目录存在
-        os.makedirs(target_directory, exist_ok=True)
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404, 
+                detail=f"文件未找到: {file_path}"
+            )
+            
+        json_file_path = os.path.join(os.path.dirname(file_path), f"{os.path.splitext(os.path.basename(file_path))[0]}", f"{os.path.splitext(os.path.basename(file_path))[0]}.json")
         
-        # 3. 构建JSON文件路径
-        json_file_path = os.path.join(target_directory, f"{file_name}.json")
-
-        # 4. 验证OCR结果文件是否存在
         if not os.path.exists(json_file_path):
             raise HTTPException(
                 status_code=404, 
                 detail=f"OCR结果文件未找到: {json_file_path}"
             )
 
-        # 5. 读取OCR结果
-        try:
-            with open(json_file_path, "r", encoding="utf-8") as f:
-                ocr_results = json.load(f)
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"OCR结果文件格式错误: {str(e)}"
+        with open(json_file_path, "r", encoding="utf-8") as f:
+            ocr_results = json.load(f)
+
+        # 创建线程池
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            # 将异步函数转换为同步函数
+            def sync_process_pdf_pages(*args, **kwargs):
+                return asyncio.run(process_pdf_pages(*args, **kwargs))
+
+            # 在线程池中执行同步函数
+            future = executor.submit(
+                sync_process_pdf_pages,
+                file_path,
+                ocr_results,
+                data.user_name,
+                data.series_name,
+                data.content_page
             )
+            
+            # 等待结果
+            result = future.result()
 
-        # 生成任务ID
-        task_id = str(uuid.uuid4())
-        progress_tracker[task_id] = {
-            "current": 0,
-            "total": len(ocr_results),
-            "completed": False
-        }
+        return {"status": "success", "message": "处理完成"}
 
-        # 添加后台任务
-        background_tasks.add_task(
-            process_pdf_pages,
-            os.path.join(".", data.file_path.lstrip("/")),
-            ocr_results,
-            data.user_name,
-            data.series_name,
-            data.content_page,
-            task_id  # 传递任务ID
-        )
-
-        return {
-            "status": "success",
-            "message": "文献处理任务已启动",
-            "task_id": task_id,  # 返回任务ID
-            "details": {
-                "file_name": file_name,
-                "target_directory": target_directory,
-                "total_entries": len(ocr_results)
-            }
-        }
-
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"处理请求时出错: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+@file_router.post("/ProcessAllPdfPages/")
+async def process_all_pdf_pages_endpoint(data: ProcessPdfPagesRequest):
+    try:
+        result = await process_all_pdf_pages(data.file_path, data.user_name, data.series_name, data.content_page)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
