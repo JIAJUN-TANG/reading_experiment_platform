@@ -204,3 +204,32 @@ async def get_catelogue(file_path, start_page, end_page, language):
     images = await pdf_to_images(file_path, start_page, end_page)
     ocr_results = await perform_ocr(images, language)
     return ocr_results
+
+async def save_catelogue(file_path: str, ocr_results: dict):
+    """
+    保存目录为JSON文件
+    Args:
+        file_path: PDF文件路径，例如 '/cached/user@email.com/example.pdf'
+        ocr_results: OCR识别结果的字典
+    """
+    try:
+        # 提取目录和文件名
+        dir_path = f".{os.path.dirname(file_path)}"  # 获取目录路径
+        file_name = os.path.splitext(os.path.basename(file_path))[0]  # 获取文件名（不含扩展名）
+        
+        # 确保目录存在
+        os.makedirs(dir_path, exist_ok=True)
+        
+        # 构建JSON文件路径
+        json_path = os.path.join(dir_path, f"{file_name}/", f"{file_name}.json")
+
+        # 保存为JSON文件
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(ocr_results, f, ensure_ascii=False, indent=2)
+            
+        return {"status": "success", "message": "目录已保存", "path": json_path}
+        
+    except Exception as e:
+        print(f"Error saving catalogue: {e}")
+        raise HTTPException(status_code=500, detail=f"保存目录失败：{str(e)}")
+        

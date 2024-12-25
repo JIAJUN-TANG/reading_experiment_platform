@@ -32,11 +32,6 @@ class ProcessPdfPagesRequest(BaseModel):
     series_name: str
     content_page: str
 
-class ProcessTextRequest(BaseModel):
-    file_path: str
-    user_name: str
-    series_name: str
-
 class SearchDataRequest(BaseModel):
     search_string: str
 
