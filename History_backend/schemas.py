@@ -28,7 +28,6 @@ class OCRResults(BaseModel):
 class ProcessPdfPagesRequest(BaseModel):
     file_path: str
     user_name: str
-    language: str
     series_name: str
     content_page: str
 

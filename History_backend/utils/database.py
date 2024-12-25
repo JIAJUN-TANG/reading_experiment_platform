@@ -1,5 +1,4 @@
 import sqlite3
-from io import BytesIO
 
 
 def get_db_connection():
@@ -22,6 +21,7 @@ def create_table():
             end_page INTEGER NOT NULL,
             full_text TEXT NOT NULL,
             file BLOB NOT NULL,
+            insert_date TEXT NOT NULL,
             date TEXT
         )'''
     )
@@ -29,6 +29,18 @@ def create_table():
     conn.close()
 
 create_table()
+
+def save_document_to_db(document_uuid: str,  user_name: str, series_name: str, file_name: str, title: str, start_page: int, end_page: int, full_text: str, pdf_blob: bytes, insert_date: str, date: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO documents (
+                        uuid, user_name, series_name, file_name, title, 
+                        start_page, end_page, full_text, file, insert_date, date) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                   (document_uuid, user_name, series_name, file_name, 
+                    title, start_page, end_page, full_text, pdf_blob, insert_date, date))
+    conn.commit()
+    conn.close()
 
 def create_user_table():
     """ 创建用户数据库的数据表 """
