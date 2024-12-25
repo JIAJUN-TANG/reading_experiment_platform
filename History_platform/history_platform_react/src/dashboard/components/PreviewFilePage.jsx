@@ -170,7 +170,7 @@ export default function FilePreview(props) {
               gap: 2,
               flex: 1,
               height: 'calc(100vh - 350px)',
-              width: '90%',
+              width: '100%',
               margin: '0 auto',
             }}
           >
@@ -181,7 +181,6 @@ export default function FilePreview(props) {
                   display: 'flex',
                   flexDirection: 'column',
                   bgcolor: 'background.paper',
-                  borderRadius: 1,
                   boxShadow: 1,
                   overflow: 'hidden',
                 }}
@@ -204,7 +203,6 @@ export default function FilePreview(props) {
                 display: 'flex',
                 flexDirection: 'column',
                 bgcolor: 'background.paper',
-                borderRadius: 1,
                 boxShadow: 1,
                 overflow: 'hidden',
               }}

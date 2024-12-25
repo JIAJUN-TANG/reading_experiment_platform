@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { alpha } from '@mui/material/styles';
-import { CssBaseline, Box, Stack, Tabs, Tab, Typography, Stepper, Step, StepLabel, Button, Paper } from '@mui/material';
+import { CssBaseline, Box, Stack, Tabs, Tab, Typography, Stepper, Step, StepLabel, Button, Paper, Alert, Snackbar, Card, CardContent, CardActions, TextField  } from '@mui/material';
 import AppNavbar from './dashboard/components/AppNavbar';
 import Header from './dashboard/components/Header';
 import SideMenu from './dashboard/components/SideMenu';
@@ -18,6 +18,8 @@ import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import CheckIcon from '@mui/icons-material/Check';  // 导入勾的图标
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import { MenuItem } from '@mui/material';
 
 
 const xThemeComponents = {
@@ -91,6 +93,9 @@ export default function Process(props) {
     language: ''
   });
   const [tabValue, setTabValue] = useState(0);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState('success');
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -168,7 +173,7 @@ export default function Process(props) {
     },
     {
       label: '保存到数据库',
-      description: '将文献信息保存到数据库中',
+      description: '请找到正文第1页在PDF文件的页码，将文献信息保存到数据库中',
       component: (
         <WriteToDatabaseCard 
           filePath={filePath} 
@@ -177,6 +182,21 @@ export default function Process(props) {
       ),
     },
   ];
+
+  // 处理 Alert 关闭
+  const handleAlertClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setAlertOpen(false);
+  };
+
+  // 显示 Alert
+  const showAlert = (message, severity = 'success') => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setAlertOpen(true);
+  };
 
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
@@ -304,14 +324,9 @@ export default function Process(props) {
                                 variant="contained"
                                 onClick={handleNext}
                                 disabled={index === 0 && !ocrResults}
+                                endIcon={index === steps.length - 1 ? <DoneAllIcon /> : <NavigateNextIcon />}
                               >
-                                {index === steps.length - 1 ? (
-        '完成'
-      ) : (
-        <>
-          <NavigateNextIcon />
-          {' 下一步'}
-        </>)}
+                                {index === steps.length - 1 ? '保存' : '下一步'}
                               </Button>
                               <Button
                                 disabled={index === 0}
@@ -350,8 +365,44 @@ export default function Process(props) {
             </Box>
           </TabPanel>
           <TabPanel value={tabValue} index={1}>
-            <Box sx={{ p: 4 }}>
-              <Typography>文献标注功能开发中...</Typography>
+          <Box sx={{ display: 'flex', width: '100%', gap: 2, p: 4 }}>
+              {!filePath ? (
+                <Stack spacing={2} sx={{ alignItems: 'center', width: '100%' }}>
+                  <FileUploaderViewer onUploadSuccess={handleUploadSuccess} />
+                </Stack>
+              ) : (
+                <Box sx={{ display: 'flex', width: '100%', gap: 2 }}>
+                  <Box sx={{ width: '45%', p: 2, border: '2px dashed #ccc', borderRadius: '8px', height: '100vh', overflow: 'auto' }}>
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+                      <div style={{ height: '100%' }}>
+                        <Viewer fileUrl={`http://114.212.97.42:8000${filePath}`} plugins={[defaultLayoutPluginInstance]} />
+                      </div>
+                    </Worker>
+                  </Box>
+                
+              {/* 右侧卡片 */}
+              <Card sx={{ width: '55%', height: 'fit-content' }}>
+                <CardContent>
+                  
+                </CardContent>
+                <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => handlePageRangeConfirm(
+                      pageSelectData.startPage,
+                      pageSelectData.endPage,
+                      pageSelectData.language
+                    )}
+                    disabled={loading}
+                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+                  >
+                    {loading ? '处理中...' : '开始处理'}
+                  </Button>
+                </CardActions>
+              </Card>
+              </Box>
+              )}
             </Box>
           </TabPanel>
           <TabPanel value={tabValue} index={2}>
@@ -362,6 +413,31 @@ export default function Process(props) {
         </Box>
         <FloatingChatButton />
       </Box>
+      <Snackbar 
+        open={alertOpen} 
+        autoHideDuration={3000} 
+        onClose={handleAlertClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          icon={alertSeverity === 'success' ? 
+            <CheckIcon fontSize="inherit" /> : 
+            <ErrorIcon fontSize="inherit" />
+          }
+          onClose={handleAlertClose} 
+          severity={alertSeverity}
+          variant="filled"
+          sx={{ 
+            width: '100%',
+            fontSize: '1rem',
+            '& .MuiAlert-icon': {
+              fontSize: '1.5rem'
+            }
+          }}
+        >
+          {alertMessage}
+        </Alert>
+      </Snackbar>
     </AppTheme>
   );
 }

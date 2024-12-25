@@ -97,11 +97,6 @@ export default function GuideTable({ ocrResults, filePath }) {
     }
   };
 
-  // 打印 selectionModel 和其它调试信息
-  useEffect(() => {
-    console.log("Current selectionModel:", selectionModel); // 这个会在每次 selectionModel 更新时触发
-  }, [selectionModel]);
-
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
       <Card sx={{ width: '100%' }}>
