@@ -43,12 +43,7 @@ class TranslationRequest(BaseModel):
     page: int
     service: str
     language:str
-
-class TranslatePDFRequest(BaseModel):
-    file_path: str
-    language: str
-    service: str
-
+    
 class ChatRequest(BaseModel):
     user_message: str
     assistant_message: str

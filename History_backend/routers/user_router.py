@@ -18,7 +18,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 @user_router.post("/SignUp/")
 async def SignUp(user: UserCreate):
     # 检查用户是否已存在（假设通过 email 唯一标识用户）
-    user_data = user_login(user.email)
+    user_data = await user_login(user.email)
     if user_data:
         raise HTTPException(status_code=500, detail="邮箱已注册，请直接登录！")
     else:
@@ -34,13 +34,13 @@ async def SignUp(user: UserCreate):
     }
 
     # 插入用户数据到数据库
-        user_register(user_data)
+        await user_register(user_data)
         return {"msg": "用户注册成功"}
 
 @user_router.post("/SignIn/")
 async def SignIn(user: UserLogin):
     # 从数据库中查询用户信息
-    user_data = user_login(user.email)
+    user_data = await user_login(user.email)
 
     if not user_data:
         raise HTTPException(status_code=401, detail="用户不存在！")
@@ -56,7 +56,7 @@ async def SignIn(user: UserLogin):
     # 保存记录
     only_id = str(uuid.uuid4())
     login_date = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-    record_usage(only_id, email, user_name, affiliation, login_date, user.ip_address)
+    await record_usage(only_id, email, user_name, affiliation, login_date, user.ip_address)
 
     # 生成 token
     token = create_access_token(data={"sub": email})
@@ -101,7 +101,7 @@ async def check_auth(request: Request):
             raise HTTPException(status_code=401, detail="无效token！")
 
         # 从数据库中查询用户信息
-        user_data = user_login(user_email)
+        user_data = await user_login(user_email)
 
         # 检查用户是否存在
         if not user_data:
@@ -121,7 +121,7 @@ async def check_auth(request: Request):
 @user_router.get("/GetAffiliation/")
 async def get_affiliation_endpoint():
     try:
-        affiliations = get_affiliation()
+        affiliations = await get_affiliation()
         return affiliations
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"加载失败：{str(e)}")

@@ -6,7 +6,7 @@ from io import BytesIO
 import fitz
 from utils.database import save_document_to_db
 import json
-from utils.request import send_request
+from utils.request import send_request_sync
 import asyncio
 from paddlex import create_pipeline
 import datetime
@@ -91,10 +91,10 @@ async def process_images(all_texts: str, language: str):
             "presence_penalty": 0
         }
         
-        response = send_request(headers, payload)
+        response = send_request_sync(headers, payload)
         if not response or not hasattr(response, 'choices'):
             await asyncio.sleep(2)
-            response = send_request(headers, payload)
+            response = send_request_sync(headers, payload)
             
         if response and hasattr(response, 'choices'):
             try:
@@ -226,4 +226,27 @@ async def process_pdf_pages(file_path: str, ocr_results: dict, user_name: str, s
     doc.close()
 
 async def process_all_pdf_pages(file_path: str, user_name: str, series_name: str, content_page: int):
-    pass
+    doc = fitz.open(file_path)
+    total_pages = len(doc)
+    for i in range(total_pages):
+        split_pdf = fitz.open()
+        split_pdf.insert_pdf(doc, from_page=i, to_page=i)
+
+        split_pdf_path = f"{uuid.uuid4()}.pdf"
+        split_pdf.save(split_pdf_path)
+        with open(split_pdf_path, "rb") as f:
+            pdf_blob = f.read()
+
+        full_text = ""
+        image = await pdf_to_images(file_path, i)
+        text = await process_single_image_ocr(image)
+        full_text += f"<SEP>{text}<SEP>"
+        document_uuid = str(uuid.uuid4())
+        insert_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        await save_document_to_db(document_uuid, user_name, series_name, os.path.splitext(os.path.basename(file_path))[0], "", i, i, full_text, pdf_blob, insert_date, "")
+
+        os.remove(split_pdf_path)
+        split_pdf.close()
+
+    doc.close()

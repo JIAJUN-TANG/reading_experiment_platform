@@ -149,7 +149,7 @@ async def process_pdf_pages_endpoint(data: ProcessPdfPagesRequest):
 @file_router.post("/ProcessAllPdfPages/")
 async def process_all_pdf_pages_endpoint(data: ProcessPdfPagesRequest):
     try:
-        result = await process_all_pdf_pages(data.file_path, data.user_name, data.series_name, data.content_page)
-        return result
+        await process_all_pdf_pages(data.file_path, data.user_name, data.series_name, data.content_page)
+        return {"status": "success", "message": "处理完成"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,6 +1,7 @@
 from openai import OpenAI
 
-def send_request(headers, payload):
+def send_request_sync(headers, payload):
+    """同步版本的send_request函数"""
     try:
         client = OpenAI(
             api_key=headers.get("Authorization").replace("Bearer ", ""),

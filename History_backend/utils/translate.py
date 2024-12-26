@@ -1,11 +1,16 @@
 import os
-from utils.request import send_request
-import time
+from utils.request import send_request_sync
 import json
 import base64
 from io import BytesIO
 import pypdfium2
 from fastapi.exceptions import HTTPException
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+
+# 创建一个线程池
+thread_pool = ThreadPoolExecutor(max_workers=4)
 
 async def open_pdf(pdf_file):
     try:
@@ -67,25 +72,20 @@ async def save_results_to_cache(file_path: str, page: int, ocr_text: str, transl
             json.dump(results, f, ensure_ascii=False, indent=4)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save results to cache: {str(e)}")
-    
-async def retry_request(headers, payload, max_retries=5, delay=2):
-    for attempt in range(max_retries):
-        response = send_request(headers, payload)
-        if response:
-            return response
-        if attempt < max_retries - 1:
-            time.sleep(delay)
-    return None
 
 async def translate_text(file_path, email, page, language, service):
-    filename = os.path.splitext(os.path.basename(file_path))[0]
-    cache_path = await get_user_cache_path(email, filename)
-    cached_results = await load_cached_results(cache_path)
-    if str(page) in cached_results:
-        return cached_results[str(page)]
-    else:
+    try:
+        filename = os.path.splitext(os.path.basename(file_path))[0]
+        cache_path = await get_user_cache_path(email, filename)
+        cached_results = await load_cached_results(cache_path)
+        
+        if str(page) in cached_results:
+            return cached_results[str(page)]
+        
+        # 获取图像和编码可以在主线程中进行
         image = await get_page_image(file_path, page)
         encoded_image = await encode_image(image)
+        
         if service == "ChatGPT":
             model = "gpt-4o-mini"
         
@@ -94,6 +94,7 @@ async def translate_text(file_path, email, page, language, service):
             "Authorization": "Bearer sk-SkV6Leve2mXaej9lNP6VMuhugmbC2B6J6x8ASVQutg50hQt1"
         }
         
+        # 创建OCR和翻译的任务
         ocr_payload = {
             "model": model,
             "messages": [
@@ -106,16 +107,18 @@ async def translate_text(file_path, email, page, language, service):
             "frequency_penalty": 0,
             "presence_penalty": 0
         }
-        
-        ocr_response = await retry_request(headers, ocr_payload)
-        if not ocr_response:
+
+        # 使用线程池执行OCR请求
+        loop = asyncio.get_event_loop()
+        ocr_response = await loop.run_in_executor(
+            thread_pool, 
+            partial(send_request_sync, headers, ocr_payload)
+        )
+
+        if not ocr_response or not ocr_response.choices:
             raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
 
-        ocr_choices = ocr_response.choices
-        if not ocr_choices:
-            raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
-
-        ocr_text = ocr_choices[0].message.content.replace("`", "")
+        ocr_text = ocr_response.choices[0].message.content.replace("`", "")
         if not ocr_text:
             raise HTTPException(status_code=500, detail="OCR识别失败，未能提取文本。")
 
@@ -131,18 +134,21 @@ async def translate_text(file_path, email, page, language, service):
             "presence_penalty": 0
         }
 
-        translation_response = await retry_request(headers, translation_payload)
-        if not translation_response:
+        # 使用线程池执行翻译请求
+        translation_response = await loop.run_in_executor(
+            thread_pool,
+            partial(send_request_sync, headers, translation_payload)
+        )
+
+        if not translation_response or not translation_response.choices:
             raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 
-        translation_choices = translation_response.choices
-        if not translation_choices:
-            raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
-
-        translated_text = translation_choices[0].message.content.replace("`", "")
+        translated_text = translation_response.choices[0].message.content.replace("`", "")
         if not translated_text:
             raise HTTPException(status_code=500, detail="翻译失败，未能生成翻译文本。")
 
         await save_results_to_cache(cache_path, page, ocr_text, translated_text)
-
         return {"ocr_text": ocr_text, "translated_text": translated_text}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
