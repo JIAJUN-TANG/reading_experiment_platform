@@ -1,35 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { alpha } from '@mui/material/styles';
-import { CssBaseline, Box, Stack, Tabs, Tab, Typography, Stepper, Step, StepLabel, Button, Paper, Alert, Snackbar, Card, CardContent, CardActions, TextField  } from '@mui/material';
+import { 
+  CssBaseline, Box, Stack, Tabs, Tab, Typography, 
+  Stepper, Step, StepLabel, Button, Paper, Alert, 
+  Snackbar, Card, CardContent, CardActions, TextField 
+} from '@mui/material';
+import { useUser } from './UserProvider';
 import AppNavbar from './dashboard/components/AppNavbar';
 import Header from './dashboard/components/Header';
 import SideMenu from './dashboard/components/SideMenu';
 import AppTheme from './shared-theme/AppTheme';
-import FileUploaderViewer from './FileUploaderViewer';  // 如果需要在其他标签页使用
+import FileUploaderViewer from './FileUploaderViewer';
 import PageNavigatorCard from './PageSelect';
 import GuideTable from './GuideTable';
 import WriteToDatabaseCard from './SavetoDatabase';
-import axios from 'axios'; 
-import { chartsCustomizations, dataGridCustomizations, datePickersCustomizations, treeViewCustomizations } from './dashboard/theme/customizations';
-import FloatingChatButton from './AIDialog';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
-import CheckIcon from '@mui/icons-material/Check';  // 导入勾的图标
+import CheckIcon from '@mui/icons-material/Check';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
-import { MenuItem } from '@mui/material';
+import ErrorIcon from '@mui/icons-material/Error';
 
-
-const xThemeComponents = {
-  ...chartsCustomizations,
-  ...dataGridCustomizations,
-  ...datePickersCustomizations,
-  ...treeViewCustomizations,
-};
-
-// TabPanel组件，用于切换显示内容
 function TabPanel({ children, value, index, ...other }) {
   return (
     <div
@@ -41,17 +34,14 @@ function TabPanel({ children, value, index, ...other }) {
     >
       {value === index && (
         <Box sx={{ p: 3 }}>
-          <Typography>{children}</Typography>
+          {children}
         </Box>
       )}
     </div>
   );
 }
 
-// 自定义步骤图标组件
-const CustomStepIcon = (props) => {
-  const { active, completed, className, icon } = props;
-  
+const CustomStepIcon = ({ active, completed, className, icon }) => {
   return (
     <Box
       className={className}
@@ -69,44 +59,50 @@ const CustomStepIcon = (props) => {
         fontSize: '14px',
       }}
     >
-      {completed ? (
-        <CheckIcon sx={{ fontSize: 20 }} />
-      ) : (
-        icon
-      )}
+      {completed ? <CheckIcon sx={{ fontSize: 20 }} /> : icon}
     </Box>
   );
 };
 
-export default function Process(props) {
+export default function Process() {
+  const { email } = useUser();
   const [filePath, setFilePath] = useState(null);
   const [pageCount, setPageCount] = useState(null);
   const [ocrResults, setOcrResults] = useState(null);
-  const [showGuideTable, setShowGuideTable] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [tabIndex, setTabIndex] = useState(0);
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const [activeStep, setActiveStep] = useState(0);
+  const [tabValue, setTabValue] = useState(0);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState('success');
   const [pageSelectData, setPageSelectData] = useState({
     startPage: '',
     endPage: '',
     language: ''
   });
-  const [tabValue, setTabValue] = useState(0);
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertSeverity, setAlertSeverity] = useState('success');
-
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
+  const [quickReadFilePath, setQuickReadFilePath] = useState(null);
+  const [quickReadPageCount, setQuickReadPageCount] = useState(null);
+  const quickReadLayoutPluginInstance = defaultLayoutPlugin();
 
   const handleUploadSuccess = (path, numPages) => {
-    setFilePath(path);
-    setPageCount(numPages);
+    if (path && numPages) {
+      setFilePath(path);
+      setPageCount(numPages);
+      showAlert('文件上传成功', 'success');
+    } else {
+      setFilePath(null);
+      setPageCount(null);
+      showAlert('文件上传失败', 'error');
+    }
   };
 
   const handlePageRangeConfirm = async (startPage, endPage, language) => {
+    if (!filePath) {
+      showAlert('请先上传文件', 'error');
+      return;
+    }
+
     setLoading(true);
     setPageSelectData({
       startPage,
@@ -121,30 +117,69 @@ export default function Process(props) {
         end_page: parseInt(endPage, 10),
         language: language,
       });
-      setOcrResults(response.data.ocr_results);
-      setShowGuideTable(true);
-      handleNext();
+
+      if (response.data.ocr_results) {
+        setOcrResults(response.data.ocr_results);
+        handleNext();
+        showAlert('目录解析成功', 'success');
+      } else {
+        throw new Error('目录解析失败：未返回结果');
+      }
     } catch (error) {
-      console.error('OCR解析失败：', error.response?.data || error.message);
-      alert('目录解析失败，请重试！');
+      console.error('目录解析失败：', error);
+      showAlert('目录解析失败，请重试', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+    setActiveStep((prevStep) => prevStep + 1);
   };
 
   const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+    setActiveStep((prevStep) => prevStep - 1);
   };
 
   const handleReset = () => {
     setActiveStep(0);
+    setOcrResults(null);
+    setPageSelectData({
+      startPage: '',
+      endPage: '',
+      language: ''
+    });
   };
 
-  // 定义步骤
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
+  const showAlert = (message, severity = 'success') => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setAlertOpen(true);
+  };
+
+  const handleAlertClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setAlertOpen(false);
+  };
+
+  const handleQuickReadUploadSuccess = (path, numPages) => {
+    if (path && numPages) {
+      setQuickReadFilePath(path);
+      setQuickReadPageCount(numPages);
+      showAlert('文件上传成功', 'success');
+    } else {
+      setQuickReadFilePath(null);
+      setQuickReadPageCount(null);
+      showAlert('文件上传失败', 'error');
+    }
+  };
+
   const steps = [
     {
       label: '选择目录页码',
@@ -153,7 +188,6 @@ export default function Process(props) {
         <PageNavigatorCard
           filePath={filePath}
           totalPages={pageCount}
-          setOcrResults={setOcrResults}
           onConfirm={handlePageRangeConfirm}
           loading={loading}
           savedData={pageSelectData}
@@ -183,36 +217,19 @@ export default function Process(props) {
     },
   ];
 
-  // 处理 Alert 关闭
-  const handleAlertClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setAlertOpen(false);
-  };
-
-  // 显示 Alert
-  const showAlert = (message, severity = 'success') => {
-    setAlertMessage(message);
-    setAlertSeverity(severity);
-    setAlertOpen(true);
-  };
-
   return (
-    <AppTheme {...props} themeComponents={xThemeComponents}>
+    <AppTheme>
       <CssBaseline enableColorScheme />
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         <SideMenu />
         <AppNavbar />
         <Box
           component="main"
-          sx={(theme) => ({
+          sx={{
             flexGrow: 1,
-            backgroundColor: theme.vars
-              ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
-              : alpha(theme.palette.background.default, 1),
+            backgroundColor: (theme) => alpha(theme.palette.background.default, 1),
             overflow: 'auto',
-          })}
+          }}
         >
           <Stack spacing={2} sx={{ alignItems: 'center', mx: 3, pl: 5, pr: 5, pb: 5, mt: { xs: 8, md: 1 } }}>
             <Header />
@@ -221,7 +238,7 @@ export default function Process(props) {
           <Box sx={{
             px: 4,
             display: 'flex',
-            justifyContent: 'center',  // 居中显示
+            justifyContent: 'center',
             width: '100%'
           }}>
             <Tabs 
@@ -232,11 +249,11 @@ export default function Process(props) {
                 '& .MuiTab-root': {
                   fontSize: '1rem',
                   fontWeight: 500,
-                  px: 6,  // 增加标签之间的水平间距
-                  minWidth: 120,  // 设置最小宽度
+                  px: 6,
+                  minWidth: 120,
                 },
                 '& .MuiTabs-flexContainer': {
-                  gap: 4,  // 增加标签之间的间距
+                  gap: 4,
                 }
               }}
             >
@@ -257,7 +274,10 @@ export default function Process(props) {
                   <Box sx={{ width: '45%', p: 2, border: '2px dashed #ccc', borderRadius: '8px', height: '100vh', overflow: 'auto' }}>
                     <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
                       <div style={{ height: '100%' }}>
-                        <Viewer fileUrl={`http://114.212.97.42:8000${filePath}`} plugins={[defaultLayoutPluginInstance]} />
+                        <Viewer 
+                          fileUrl={`http://114.212.97.42:8000${filePath}`} 
+                          plugins={[defaultLayoutPluginInstance]} 
+                        />
                       </div>
                     </Worker>
                   </Box>
@@ -275,15 +295,6 @@ export default function Process(props) {
                           top: '16px',
                           left: 'calc(-50% + 20px)',
                           right: 'calc(50% + 20px)',
-                        },
-                        '& .MuiStepLabel-iconContainer': {
-                          paddingRight: 0,
-                        },
-                        '& .MuiStepLabel-labelContainer': {
-                          marginTop: '8px',
-                        },
-                        '& .MuiStep-root': {
-                          padding: '0 16px',
                         }
                       }}
                     >
@@ -312,8 +323,8 @@ export default function Process(props) {
                               color="text.secondary" 
                               sx={{ 
                                 mb: 2,
-                                textAlign: 'center',  // 文字居中
-                                width: '100%'  // 确保宽度占满
+                                textAlign: 'center',
+                                width: '100%'
                               }}
                             >
                               {step.description}
@@ -326,7 +337,7 @@ export default function Process(props) {
                                 disabled={index === 0 && !ocrResults}
                                 endIcon={index === steps.length - 1 ? <DoneAllIcon /> : <NavigateNextIcon />}
                               >
-                                {index === steps.length - 1 ? '保存' : '下一步'}
+                                {index === steps.length - 1 ? '完成' : '下一步'}
                               </Button>
                               <Button
                                 disabled={index === 0}
@@ -364,55 +375,86 @@ export default function Process(props) {
               )}
             </Box>
           </TabPanel>
+
           <TabPanel value={tabValue} index={1}>
-          <Box sx={{ display: 'flex', width: '100%', gap: 2, p: 4 }}>
-              {!filePath ? (
+            <Box sx={{ display: 'flex', width: '100%', gap: 2, p: 4 }}>
+              {!quickReadFilePath ? (
                 <Stack spacing={2} sx={{ alignItems: 'center', width: '100%' }}>
-                  <FileUploaderViewer onUploadSuccess={handleUploadSuccess} />
+                  <FileUploaderViewer onUploadSuccess={handleQuickReadUploadSuccess} />
                 </Stack>
               ) : (
                 <Box sx={{ display: 'flex', width: '100%', gap: 2 }}>
-                  <Box sx={{ width: '45%', p: 2, border: '2px dashed #ccc', borderRadius: '8px', height: '100vh', overflow: 'auto' }}>
+                  <Box sx={{ 
+                    width: '45%', 
+                    p: 2, 
+                    border: '2px dashed #ccc', 
+                    borderRadius: '8px', 
+                    height: '100vh', 
+                    overflow: 'auto' 
+                  }}>
                     <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
                       <div style={{ height: '100%' }}>
-                        <Viewer fileUrl={`http://114.212.97.42:8000${filePath}`} plugins={[defaultLayoutPluginInstance]} />
+                        <Viewer 
+                          fileUrl={`http://114.212.97.42:8000${quickReadFilePath}`} 
+                          plugins={[quickReadLayoutPluginInstance]} 
+                        />
                       </div>
                     </Worker>
                   </Box>
-                
-              {/* 右侧卡片 */}
-              <Card sx={{ width: '55%', height: 'fit-content' }}>
-                <CardContent>
-                  
-                </CardContent>
-                <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => handlePageRangeConfirm(
-                      pageSelectData.startPage,
-                      pageSelectData.endPage,
-                      pageSelectData.language
-                    )}
-                    disabled={loading}
-                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-                  >
-                    {loading ? '处理中...' : '开始处理'}
-                  </Button>
-                </CardActions>
-              </Card>
-              </Box>
+
+                  <Box sx={{ 
+                    width: '55%', 
+                    height: '100vh', 
+                    overflow: 'auto', 
+                    pr: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2
+                  }}>
+              
+                    <Card sx={{ p: 3 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        总页数：{quickReadPageCount} 页
+                      </Typography>
+                      <Box sx={{ mt: 2 }}>
+                      <Button 
+                          variant="contained"
+                          color="primary"
+                          onClick={() => {
+                            setQuickReadFilePath(null);
+                            setQuickReadPageCount(null);
+                          }}
+                          sx={{ mr: 2 }}
+                        >
+                          开始入库
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          color="primary"
+                          onClick={() => {
+                            setQuickReadFilePath(null);
+                            setQuickReadPageCount(null);
+                          }}
+                          sx={{ ml: 2 }}
+                        >
+                          重选文件
+                        </Button>
+                      </Box>
+                    </Card>
+                  </Box>
+                </Box>
               )}
             </Box>
           </TabPanel>
+
           <TabPanel value={tabValue} index={2}>
             <Box sx={{ p: 4 }}>
-              <Typography>文献分析功能开发中...</Typography>
+              <Typography>文本入库功能开发中...</Typography>
             </Box>
           </TabPanel>
         </Box>
-        <FloatingChatButton />
       </Box>
+
       <Snackbar 
         open={alertOpen} 
         autoHideDuration={3000} 
@@ -424,7 +466,6 @@ export default function Process(props) {
             <CheckIcon fontSize="inherit" /> : 
             <ErrorIcon fontSize="inherit" />
           }
-          onClose={handleAlertClose} 
           severity={alertSeverity}
           variant="filled"
           sx={{ 

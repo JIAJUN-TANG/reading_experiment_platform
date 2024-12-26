@@ -7,7 +7,10 @@ import { useUser } from './UserProvider.jsx';
 import { CloudUpload } from '@mui/icons-material';
 import { Accordion, AccordionSummary, AccordionDetails, Grid2 } from '@mui/material';
 import { ExpandMore, PictureAsPdf } from '@mui/icons-material';
+import * as pdfjs from 'pdfjs-dist';
 
+// 设置 worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 export default function PdfUploaderViewer({ onUploadSuccess }) {
   const [pdfFile, setPdfFile] = useState(null);
@@ -64,10 +67,16 @@ export default function PdfUploaderViewer({ onUploadSuccess }) {
           setPdfFile(fileUrl);
 
           try {
-            onUploadSuccess(response.data.file_path, 1);
+            // 获取PDF总页数
+            const loadingTask = pdfjs.getDocument(fileUrl);
+            const pdf = await loadingTask.promise;
+            const totalPages = pdf.numPages;
+            console.log(totalPages);
+            // 传递文件路径和总页数
+            onUploadSuccess(response.data.file_path, totalPages);
           } catch (error) {
             console.error("Error loading PDF:", error);
-            onUploadSuccess(null, null);
+            onUploadSuccess(response.data.file_path, 1);
           }
         } else {
           alert('文件上传失败');
@@ -112,10 +121,16 @@ export default function PdfUploaderViewer({ onUploadSuccess }) {
     setPdfFile(fileUrl);
 
     try {
-      onUploadSuccess(`/cached/${email}/${file}`, 1);
+      // 加载PDF文件并获取页数
+      const loadingTask = pdfjs.getDocument(fileUrl);
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+      
+      onUploadSuccess(`/cached/${email}/${file}`, totalPages);
     } catch (error) {
       console.error("Error loading PDF:", error);
-      onUploadSuccess(null, null);
+      // 如果获取页数失败，仍然传递文件路径但页数默认为1
+      onUploadSuccess(`/cached/${email}/${file}`, 1);
     }
   };
 

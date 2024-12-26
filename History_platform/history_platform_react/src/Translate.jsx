@@ -71,26 +71,14 @@ const Translate = (props) => {
   const [translatedText, setTranslatedText] = useState(null);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [response, setResponse] = useState(null);
   const [language, setLanguage] = useState('自动检测语言'); // 默认选中“自动检测语言”
   const [service, setService] = useState('ChatGPT'); // 默认选中“ChatGPT”
-  const [autoTranslate, setAutoTranslate] = useState(true); // 自动���译开关
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
+  const [autoTranslate, setAutoTranslate] = useState(true); // 自动翻译开关
   const [version, setVersion] = useState('full'); // 新增版本状态，默认全文对照模式
   const [highlightedIndex, setHighlightedIndex] = useState(null); // 高亮索引
   const [highlightEnabled, setHighlightEnabled] = useState(true); // 高亮功能的状态
   const [jumpToPage, setJumpToPage] = useState(currentPage);
-  const defaultLayoutPluginInstance = defaultLayoutPlugin({
-    onPageChange: (e) => {
-      const newPage = e.currentPage + 1;
-      setCurrentPage(newPage);
-      if (autoTranslate) {
-        handleGetOcrAndTranslate(newPage);
-      }
-    },
-  });
-  const pdfViewerRef = useRef(null); // 新增：PDF Viewer的引用
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   const handleUploadSuccess = (path, numPages) => {
     setFilePath(path);
@@ -184,38 +172,10 @@ const Translate = (props) => {
     setService(event.target.value);
   };
 
-  const handleClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  // 关闭菜单
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const toggleHighlight = () => {
     setHighlightEnabled(!highlightEnabled); // 切换高亮功能的状态
     if (highlightEnabled) {
       setHighlightedIndex(null); // 如果关闭高亮功能，清除高亮索引
-    }
-  };
-
-  const handleGetPDF = async (event) => {
-    event.preventDefault();
-    if (!filePath) {
-      alert('请先上传文件！');
-      return;
-    }
-
-    try {
-      const response = await axios.post('http://114.212.97.42:8000/translate/GetPDFTranslation/', {
-        file_path: filePath,
-        language: language,
-        service: service,
-      });
-      setResponse(response.data);
-    } catch (err) {
-      setResponse(null);
     }
   };
 
@@ -267,15 +227,6 @@ const Translate = (props) => {
 
   const handleDocumentLoad = (e) => {
     setPageCount(e.doc.numPages); // 获取并设置 PDF 的总页数
-  };
-
-  // 添加 PDF 页码变化监听
-  const handlePdfPageChange = (e) => {
-    const newPage = e.currentPage + 1;
-    setCurrentPage(newPage);
-    if (autoTranslate) {
-      handleGetOcrAndTranslate(newPage);
-    }
   };
 
   return (
@@ -413,7 +364,6 @@ const Translate = (props) => {
                       <Viewer
                         fileUrl={`http://114.212.97.42:8000${filePath}`}
                         plugins={[defaultLayoutPluginInstance]}
-                        onPageChange={handlePdfPageChange}
                         onDocumentLoad={handleDocumentLoad}
                       />
                     </div>

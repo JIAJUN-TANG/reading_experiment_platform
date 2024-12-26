@@ -6,6 +6,8 @@ import {
   Stack,
   alpha,
   Container,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import Grid2 from '@mui/material/Grid2';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -79,6 +81,22 @@ const DotBackground = () => {
 
 const Update = (props) => {
   const { userInfo } = useUser();
+  const [selectedCard, setSelectedCard] = useState(0);
+
+  const cards = [
+    {
+      title: '基础保障',
+      description: '采用先进的OCR技术，确保文字识别的准确性和可靠性。支持多种文件格式，满足不同场景需求。',
+    },
+    {
+      title: '智能处理',
+      description: '集成AI智能分析，自动优化识别结果，提供智能纠错和版面分析功能。',
+    },
+    {
+      title: '高效协同',
+      description: '支持团队协作处理，实时同步识别结果，提高工作效率。',
+    },
+  ];
 
   return (
     <AppTheme {...props}>
@@ -339,7 +357,6 @@ const Update = (props) => {
                                 }}>
                                   <Box sx={{ 
                                     p: 2, 
-                                    color: 'primary.main',
                                     display: 'flex',
                                     alignItems: 'center'
                                   }}>
@@ -384,79 +401,169 @@ const Update = (props) => {
                 </motion.div>
               </motion.div>
               <Box sx={{ position: 'relative', zIndex: 3 }}>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 1 }}
-              >
-                <Typography 
-                  variant="h2" 
-                  sx={{ 
-                    textAlign: 'center', 
-                    mb: 1, 
-                    mt: 4,
-                    position: 'relative',
-                    color: 'transparent',
-                    '&::before, &::after': {
-                      content: '"可靠光学字符识别"',
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      textAlign: 'center',
-                      background: 'linear-gradient(45deg, #9C27B0, #E1BEE7)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      filter: 'blur(0.02em)',
-                      animation: 'glitch 3s infinite linear alternate-reverse',
-                    },
-                    '&::before': {
-                      animation: 'glitch-top 3s infinite linear alternate-reverse',
-                      clipPath: 'polygon(0 0, 100% 0, 100% 33%, 0 33%)',
-                      transform: 'translateX(-0.05em)',
-                    },
-                    '&::after': {
-                      animation: 'glitch-bottom 4s infinite linear alternate-reverse',
-                      clipPath: 'polygon(0 67%, 100% 67%, 100% 100%, 0 100%)',
-                      transform: 'translateX(0.05em)',
-                    },
-                    '@keyframes glitch-top': {
-                      '0%': {
-                        transform: 'translateX(-0.05em)',
-                        filter: 'blur(0.02em) brightness(1.5)',
-                      },
-                      '100%': {
-                        transform: 'translateX(0.05em)',
-                        filter: 'blur(0.02em) brightness(2)',
-                      }
-                    },
-                    '@keyframes glitch-bottom': {
-                      '0%': {
-                        transform: 'translateX(0.05em)',
-                        filter: 'blur(0.02em) hue-rotate(15deg)',
-                      },
-                      '100%': {
-                        transform: 'translateX(-0.05em)',
-                        filter: 'blur(0.02em) hue-rotate(-15deg)',
-                      }
-                    },
-                    '&': {
-                      textShadow: `
-                        0 0 5px rgba(156,39,176,0.5),
-                        0 0 10px rgba(156,39,176,0.3),
-                        0 0 15px rgba(156,39,176,0.1)
-                      `,
-                      background: 'linear-gradient(45deg, #9C27B0, #E1BEE7)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                    }
-                  }}
+                <motion.div
+                  initial={{ opacity: 0, y: 50 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.8 }}
                 >
-                  可靠光学字符识别
-                </Typography>
-              </motion.div>
-              <Typography variant="h2" sx={{ textAlign: 'center', mb: 4,}}>
-                基础保障
-              </Typography>            
+                  <Typography 
+                    variant="h2" 
+                    sx={{ 
+                      textAlign: 'center', 
+                      mb: 1, 
+                      mt: 4,
+                      position: 'relative',
+                      color: 'transparent',
+                      '&::before, &::after': {
+                        content: '"可靠光学字符识别"',
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        textAlign: 'center',
+                        background: 'linear-gradient(45deg, #9C27B0, #E1BEE7)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        filter: 'blur(0.02em)',
+                        animation: 'glitch 3s infinite linear alternate-reverse',
+                      },
+                      '&::before': {
+                        animation: 'glitch-top 3s infinite linear alternate-reverse',
+                        clipPath: 'polygon(0 0, 100% 0, 100% 33%, 0 33%)',
+                        transform: 'translateX(-0.05em)',
+                      },
+                      '&::after': {
+                        animation: 'glitch-bottom 4s infinite linear alternate-reverse',
+                        clipPath: 'polygon(0 67%, 100% 67%, 100% 100%, 0 100%)',
+                        transform: 'translateX(0.05em)',
+                      },
+                      '@keyframes glitch-top': {
+                        '0%': {
+                          transform: 'translateX(-0.05em)',
+                          filter: 'blur(0.02em) brightness(1.5)',
+                        },
+                        '100%': {
+                          transform: 'translateX(0.05em)',
+                          filter: 'blur(0.02em) brightness(2)',
+                        }
+                      },
+                      '@keyframes glitch-bottom': {
+                        '0%': {
+                          transform: 'translateX(0.05em)',
+                          filter: 'blur(0.02em) hue-rotate(15deg)',
+                        },
+                        '100%': {
+                          transform: 'translateX(-0.05em)',
+                          filter: 'blur(0.02em) hue-rotate(-15deg)',
+                        }
+                      },
+                      '&': {
+                        textShadow: `
+                          0 0 5px rgba(156,39,176,0.5),
+                          0 0 10px rgba(156,39,176,0.3),
+                          0 0 15px rgba(156,39,176,0.1)
+                        `,
+                        background: 'linear-gradient(45deg, #9C27B0, #E1BEE7)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                      }
+                    }}
+                  >
+                    可靠光学字符识别
+                  </Typography>
+                  
+                  {/* 卡片容器 */}
+                  <Box sx={{ 
+                    position: 'relative', 
+                    height: '400px',
+                    overflow: 'hidden',
+                    mt: 4 
+                  }}>
+                    <motion.div
+                      style={{
+                        display: 'flex',
+                        gap: '2rem',
+                        padding: '0 20%',
+                      }}
+                      animate={{
+                        x: `${-selectedCard * 100}%`
+                      }}
+                      transition={{
+                        duration: 0.5,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      {cards.map((card, index) => (
+                        <motion.div
+                          key={card.title}
+                          style={{
+                            flex: '0 0 100%',
+                            padding: '1rem',
+                          }}
+                          whileHover={{ scale: 1.02 }}
+                          animate={{
+                            scale: selectedCard === index ? 1 : 0.9,
+                            opacity: selectedCard === index ? 1 : 0.5,
+                          }}
+                          onClick={() => setSelectedCard(index)}
+                        >
+                          <Card sx={{ 
+                            p: 4,
+                            height: '300px',
+                            cursor: 'pointer',
+                            boxShadow: selectedCard === index ? 6 : 2,
+                            transition: 'box-shadow 0.3s',
+                            backgroundColor: 'background.paper',
+                          }}>
+                            <Typography variant="h4" gutterBottom>
+                              {card.title}
+                            </Typography>
+                            <Typography variant="body1">
+                              {card.description}
+                            </Typography>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+
+                    {/* 右侧渐变遮罩 */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        width: '20%',
+                        height: '100%',
+                        background: 'linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,1))',
+                        pointerEvents: 'none',
+                        zIndex: 2
+                      }}
+                    />
+
+                    {/* 导航点 */}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      gap: 2,
+                      mt: 3 
+                    }}>
+                      {cards.map((_, index) => (
+                        <motion.div
+                          key={index}
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            backgroundColor: selectedCard === index ? '#9C27B0' : '#E1BEE7',
+                            cursor: 'pointer',
+                          }}
+                          whileHover={{ scale: 1.2 }}
+                          onClick={() => setSelectedCard(index)}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                </motion.div>
               </Box>
             </Box>
           </Box>

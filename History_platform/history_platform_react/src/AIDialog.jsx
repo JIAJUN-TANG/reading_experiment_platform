@@ -12,14 +12,8 @@ const FloatingChatButton = ({ assistant_message }) => {
   const [inputValue, setInputValue] = useState(''); // 输入框的值
   const [loading, setLoading] = useState(false); // 是否正在加载中
 
-  const maxTokens = 1024; // 最大 token 限制
-  const maxCharacters = maxTokens * 4; // 假设 1 token ≈ 4 个字符
-
   // 确保 assistant_message 是字符串，否则设置为空字符串
   const inputText = typeof assistant_message === 'string' ? assistant_message : '';
-
-  // 截断输入文本
-  const truncatedText = inputText.slice(0, maxCharacters);
 
   // 打开对话框
   const handleClickOpen = () => {
@@ -52,9 +46,9 @@ const FloatingChatButton = ({ assistant_message }) => {
 
     try {
       // 3. 发送请求到 /Chat/ API
-      const response = await axios.post('http://114.212.97.183:8000/AI/Chat/', {
+      const response = await axios.post('http://114.212.97.42:8000/chat/Chat/', {
         user_message: userMessage,
-        assistant_message: truncatedText
+        assistant_message: inputText
       });
 
       // 4. 确保AI回复是字符串
@@ -119,7 +113,7 @@ const FloatingChatButton = ({ assistant_message }) => {
       >
         <DialogTitle id="dialog-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <SmartToy />
-          欢迎使用文献Chat
+          文献Chat
           <IconButton aria-label="close" onClick={handleClose} size="small">
             <Close />
           </IconButton>
