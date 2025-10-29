@@ -1,5 +1,3 @@
-import os
-import streamlit as st
 import sqlite3
 from pathlib import Path
 
@@ -50,9 +48,9 @@ def init_user_db():
             CREATE TABLE IF NOT EXISTS statistics (
                 id INTEGER PRIMARY KEY,
                 email TEXT NOT NULL,
-                read INTEGER NOT NULL,
+                read INTEGER NOT NULL DEFAULT 0,
                 read_list TEXT NOT NULL,
-                remain INTEGER NOT NULL,
+                remain INTEGER NOT NULL DEFAULT 0,
                 remain_list TEXT NOT NULL,
                 FOREIGN KEY (email) REFERENCES users(email) ON DELETE CASCADE
             )
@@ -89,13 +87,46 @@ def init_experiment_db():
                 id INTEGER PRIMARY KEY,
                 experiment_name TEXT NOT NULL,
                 visible TEXT NOT NULL,
+                content TEXT NOT NULL,
+                author TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ended_at DATETIME NOT NULL,
+                user_group INTEGER NOT NULL DEFAULT 0
+            )
+        ''')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS assignments (
+                id INTEGER PRIMARY KEY,
+                experiment_name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                material_name TEXT NOT NULL,
+                ai_function TEXT NOT NULL,
+                status INTEGER NOT NULL,
+                author TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ended_at DATETIME NOT NULL,
+                FOREIGN KEY (experiment_name) REFERENCES experiments(experiment_name) ON DELETE CASCADE
+            )
+        ''')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS materials (
+                id INTEGER PRIMARY KEY,
+                experiment_name TEXT NOT NULL,
+                material_name TEXT NOT NULL,
+                visible TEXT NOT NULL,
                 ai_function TEXT NOT NULL,
                 content TEXT NOT NULL,
-                image TEXT NOT NULL,
-                video TEXT NOT NULL,
-                audio TEXT NOT NULL,
+                image TEXT,
+                video TEXT,
+                audio TEXT,
+                author TEXT NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                user_group INTEGER NOT NULL DEFAULT 0
+                user_group INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (experiment_name) REFERENCES experiments(experiment_name) ON DELETE CASCADE
             )
         ''')
 

@@ -1,8 +1,7 @@
 import streamlit as st
 import time
 from datetime import datetime
-from utils.data import save_feedback
-from module.experiment_module import statistic_experiment_page
+from utils.user import save_feedback
 
 
 @st.dialog("意见反馈")
@@ -22,18 +21,13 @@ def vote():
 st.title("欢迎参与科普阅读实验！")
 
 st.markdown("### 1.登记信息")
-st.markdown("在**第一次使用**时，请先于信息注册页面登记个人基本信息。")
-st.page_link(st.Page("pages/2_information.py"), label="信息注册", icon="📰", help=None, disabled=False, width="content")
+st.markdown("在**第一次使用**时，请先于信息登记页面登记个人基本信息。")
+st.page_link(st.Page("pages/2_information.py"), label="信息登记", icon="📰", help=None, disabled=False, width="content")
 
-st.markdown("### 2.加入实验")
-st.markdown("选择您想参与的实验项目，待研究人员审批通过后方可正式开始实验。")
-
-st.markdown("### 3.阅读材料")
+st.markdown("### 2.阅读材料")
 st.markdown("系统会自动分发需要阅读的实验材料，在阅读前**请先输入邮箱登记**。")
 st.page_link(st.Page("pages/3_reading.py"), label="材料阅读", icon="🔍", help=None, disabled=False, width="content")
 
-st.divider()
-statistic_experiment_page()
 st.divider()
 
 st.markdown("#### 联系我们")

@@ -1,7 +1,8 @@
 import streamlit as st
 import re
 from datetime import datetime
-from utils.data import register_user
+from utils.user import register_user
+from utils.notification import send_163_email
 
 
 # 初始化session_state
@@ -23,7 +24,7 @@ def is_valid_email(email):
 init_session_state()
 
 # 页面标题
-st.subheader("个人信息填写")
+st.title("📰 信息注册")
 
 # 输入组件区域
 ## 邮箱
@@ -146,7 +147,7 @@ if submit_clicked:
     if not email_val:
         error_messages.append("邮箱不能为空，请输入！")
     elif not is_valid_email(email_val):
-        error_messages.append("邮箱格式不正确（示例：example@domain.com）")
+        error_messages.append("邮箱格式不正确")
     
     if not username_val:
         error_messages.append("姓名不能为空，请输入！")
@@ -186,6 +187,9 @@ if submit_clicked:
         }
         status, message = register_user(user_data)
         if status:
+            s = send_163_email(username=user_data["username"], receiver_email=user_data["email"], subject=None, content=None, template="register_template")
+            if s:
+                st.warning(s)
             st.success(message)
         else:
             st.warning(message)
