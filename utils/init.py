@@ -117,7 +117,7 @@ def init_experiment_db():
                 id INTEGER PRIMARY KEY,
                 experiment_name TEXT NOT NULL,
                 material_name TEXT NOT NULL,
-                visible TEXT NOT NULL,
+                visible INTEGER NOT NULL,
                 ai_function TEXT NOT NULL,
                 content TEXT NOT NULL,
                 image TEXT,

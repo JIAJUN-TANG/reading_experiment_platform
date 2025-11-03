@@ -137,47 +137,15 @@ def record_behavior(email, action, act_time, target):
     finally:
         conn.close()
 
-def get_user_info():
+def get_info(db: str, table: str) -> tuple[bool, list[str] | None, list[tuple] | str]:
     conn = None
     try:
         # 连接数据库
-        conn = sqlite3.connect("./data/users.db")
+        conn = sqlite3.connect(f"./data/{db}.db")
         c = conn.cursor()
 
         # 查询所有用户
-        c.execute("SELECT * FROM users")
-        results = c.fetchall()  # 获取所有匹配记录
-        
-        # 获取列名（通过cursor.description提取字段名）
-        columns = [desc[0] for desc in c.description]
-
-        if results:
-            # 有匹配记录：返回True、列名、数据
-            return True, columns, results
-        else:
-            # 无匹配记录：仍返回列名（确保表格有表头），数据为空列表
-            return True, columns, []
-
-    except sqlite3.Error as e:
-        # 数据库错误
-        return False, None, f"数据库错误：{str(e)}"
-    except Exception as e:
-        # 其他未知错误
-        return False, None, f"查询失败：{str(e)}"
-    finally:
-        # 确保连接关闭
-        if conn:
-            conn.close()
-
-def get_experiment_info():
-    conn = None
-    try:
-        # 连接数据库
-        conn = sqlite3.connect("./data/experiments.db")
-        c = conn.cursor()
-
-        # 查询所有用户
-        c.execute("SELECT * FROM experiments")
+        c.execute(f"SELECT * FROM {table}")
         results = c.fetchall()  # 获取所有匹配记录
         
         # 获取列名（通过cursor.description提取字段名）

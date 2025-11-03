@@ -1,13 +1,12 @@
 import streamlit as st
 from utils.user import check_access
-from module.experiment_module import manage_experiment_page
-from module.participant_module import manage_participant_page
+from module.manage_module import manage_participant_page, manage_experiment_page, manage_material_page, manage_assignment_page
 
 
 def show_management_page():
     """登录成功后显示的项目管理页面内容"""
     
-    tab1, tab2, tab3 = st.tabs(["👥 用户管理", "📖 实验管理", "📄 材料管理"])
+    tab1, tab2, tab3, tab4 = st.tabs(["👥 用户管理", "📖 实验管理", "📄 材料管理", "📧 分发管理"])
 
     # 用户管理
     with tab1:
@@ -19,8 +18,11 @@ def show_management_page():
 
     # 材料管理
     with tab3:
-        st.write("• 新增/编辑/删除阅读材料")
-        st.write("• 查看材料被阅读的统计数据")
+        manage_material_page()
+    
+    # 分发管理
+    with tab4:
+        manage_assignment_page()
     
     # 退出登录按钮
     if st.button("退出登录", type="secondary"):
