@@ -1,76 +1,8 @@
 import sqlite3
 import json
 import os
+from typing import Optional, Tuple, Union, List
 
-
-def check_assignments(email):
-    """
-    通过邮箱查询所有符合条件的用户数据，返回全部匹配记录
-    
-    参数：
-        email: 用户邮箱字符串（用于筛选条件）
-        
-    返回：
-        tuple: (状态, 数据)
-            - 状态为 True 时，数据为所有匹配的记录列表（每个记录是包含所有字段的元组）
-            - 状态为 False 时，数据为错误信息（数据库错误）或空列表（无匹配记录）
-    """
-    conn = None
-    try:
-        # 连接数据库
-        conn = sqlite3.connect("./data/experiments.db")
-        c = conn.cursor()
-
-        # 查询所有匹配邮箱的记录
-        c.execute("SELECT * FROM assignments WHERE email = ?", (email.strip(),))  # 去除邮箱前后空格
-        results = c.fetchall()  # 获取所有匹配记录
-
-        if results:
-            # 有匹配记录：返回True和所有记录列表
-            return True, results
-        else:
-            # 无匹配记录：返回True和空列表
-            return True, []
-
-    except sqlite3.Error as e:
-        # 数据库错误
-        return False, f"数据库错误：{str(e)}"
-    except Exception as e:
-        # 其他未知错误
-        return False, f"查询失败：{str(e)}"
-    finally:
-        # 确保连接关闭
-        if conn:
-            conn.close()
-
-def get_statistics(email):
-    conn = None
-    try:
-        # 连接数据库
-        conn = sqlite3.connect("./data/users.db")
-        c = conn.cursor()
-
-        # 查询所有匹配邮箱的记录
-        c.execute("SELECT * FROM statistics WHERE email = ?", (email.strip(),))  # 去除邮箱前后空格
-        results = c.fetchone()  # 获取所有匹配记录
-
-        if results:
-            # 有匹配记录：返回True和所有记录列表
-            return True, results
-        else:
-            # 无匹配记录：返回True和空列表
-            return True, []
-
-    except sqlite3.Error as e:
-        # 数据库错误
-        return False, f"数据库错误：{str(e)}"
-    except Exception as e:
-        # 其他未知错误
-        return False, f"查询失败：{str(e)}"
-    finally:
-        # 确保连接关闭
-        if conn:
-            conn.close()
 
 def save_feedback(feedback, feedback_time) -> tuple[bool, str]:
     """
@@ -204,64 +136,85 @@ def delete_data(db: str, table: str, field: str, id: str):
         if conn:
             conn.close()
 
-import sqlite3
-from typing import Tuple
-
-
 def insert_data(
     db: str, 
     table: str, 
     data: dict, 
-    primary_key: str
+    primary_key: Optional[Union[str, List[str]]]
 ) -> Tuple[bool, str]:
     """
-    通用数据库插入函数）
+    通用数据库插入函数
     
     参数:
         db: 数据库文件名
         table: 目标表名
-        user_data: 插入的数据字典
-        primary_key: 用于查重的主键字段名
+        data: 插入的数据字典（键为字段名，值为字段值）
+        primary_key: 用于查重的主键字段名（支持单个字段或复合主键列表）
     
     返回:
         Tuple[bool, str]: (是否成功, 提示信息)
     """
     conn = None
     try:
-        if primary_key not in data:
-            return False, f"错误：主键字段「{primary_key}」未在数据中找到"
-        
+        # 检查主键字段是否都在数据中
+        if isinstance(primary_key, list):
+            # 复合主键：检查每个字段是否存在
+            missing_keys = [key for key in primary_key if key not in data]
+            if missing_keys:
+                return False, f"错误：主键字段「{', '.join(missing_keys)}」未在数据中找到"
+        else:
+            # 检查字段是否存在
+            if primary_key is not None and primary_key not in data:
+                return False, f"错误：主键字段「{primary_key}」未在数据中找到"
+
+        # 连接数据库
         conn = sqlite3.connect(f"./data/{db}.db")
         c = conn.cursor()
-        
-        c.execute(
-            f"SELECT {primary_key} FROM {table} WHERE {primary_key} = ?",
-            (data[primary_key],)
-        )
-        if c.fetchone():
-            return False, f"数据已存在：主键「{primary_key}={data[primary_key]}」已被使用"
 
+        # 查重逻辑
+        if primary_key is not None:
+            if isinstance(primary_key, list):
+                # 复合主键查重
+                where_clause = " AND ".join([f"{key} = ?" for key in primary_key])
+                primary_values = tuple(data[key] for key in primary_key)
+                
+                c.execute(
+                    f"SELECT 1 FROM {table} WHERE {where_clause}",
+                    primary_values
+                )
+                if c.fetchone():
+                    key_str = ", ".join([f"{key}={data[key]}" for key in primary_key])
+                    return False, f"数据已存在：主键组合「{key_str}」已被使用"
+            else:
+                # 单个主键查重
+                c.execute(
+                    f"SELECT {primary_key} FROM {table} WHERE {primary_key} = ?",
+                    (data[primary_key],)
+                )
+                if c.fetchone():
+                    return False, f"数据已存在：主键「{primary_key}={data[primary_key]}」已被使用"
+
+        # 构建插入SQL
         fields = list(data.keys())
         placeholders = ", ".join(["?"] * len(fields))
         insert_sql = f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders})"
         
+        # 执行插入
         c.execute(insert_sql, tuple(data.values()))
-        conn.commit()  # 提交事务
+        conn.commit()
         
-        if "email" in data and "created_at" in data and "behavior" in data:
+        if "email" in data and "behavior" in data and "created_at" in data:
             record_behavior(data["email"], data["behavior"], data["created_at"], None)
         
-        return True, f"数据插入成功！表：{table}，主键：{primary_key}={data[primary_key]}"
+        success_msg = "数据插入成功！"
+        return True, success_msg
     
     except sqlite3.Error as e:
-        # 数据库错误时回滚事务
         if conn:
             conn.rollback()
         return False, f"数据库错误：{str(e)}（表：{table}）"
     except Exception as e:
-        # 其他未知错误
         return False, f"插入失败：{str(e)}"
     finally:
-        # 确保连接关闭
         if conn:
             conn.close()

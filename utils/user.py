@@ -3,35 +3,6 @@ from utils.data import record_behavior
 from pathlib import Path
 import yaml
 
-
-def create_statistics(email):
-    conn = None
-    try:
-        # 连接数据库
-        conn = sqlite3.connect("./data/users.db")
-        c = conn.cursor()
-
-        c.execute("SELECT email FROM statistics WHERE email = ?", (email,))
-        if c.fetchone():
-            return True
-        
-        else:
-            c.execute(
-            "INSERT INTO statistics (email, read, read_list, remain, remain_list) VALUES (?, ?, ?, ?, ?)",
-            (email, 0, "[]", 0, "[]")
-        )
-            conn.commit()
-
-    except sqlite3.Error as e:
-        # 数据库错误
-        return False, f"数据库错误：{str(e)}"
-    except Exception as e:
-        # 其他未知错误
-        return False, f"查询失败：{str(e)}"
-    finally:
-        # 确保连接关闭
-        if conn:
-            conn.close()
             
 def register_user(user_data):
     """注册新参与者信息，存入数据库"""
@@ -48,12 +19,11 @@ def register_user(user_data):
 
         # 插入新用户
         c.execute(
-            "INSERT INTO users (email, username, sex, age, degree, school, major, created_at, role, user_group) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_data["email"], user_data["username"], user_data["sex"], user_data["age"], user_data["degree"], user_data["school"], user_data["major"], user_data["created_at"], user_data["role"], 0)
+            "INSERT INTO users (email, username, sex, age, degree, school, major, created_at, role, user_group, experiment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_data["email"], user_data["username"], user_data["sex"], user_data["age"], user_data["degree"], user_data["school"], user_data["major"], user_data["created_at"], user_data["role"], 0, user_data["experiment_name"])
         )
         conn.commit()
         record_behavior(user_data["email"], "register", user_data["created_at"], None)
-        create_statistics(user_data["email"])
         return True, "信息录入成功！"
     
     except Exception as e:

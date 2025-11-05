@@ -3,13 +3,15 @@ import re
 from datetime import datetime
 from utils.user import register_user
 from utils.notification import send_163_email
+from utils.data import get_info
+import pandas as pd
 
 
 # 初始化session_state
 def init_session_state():
     fields = [
         "email", "username", "sex", "age", "degree", 
-        "school", "major", "role"
+        "school", "major", "role", "experiment_name"
     ]
     for field in fields:
         if field not in st.session_state:
@@ -22,6 +24,9 @@ def is_valid_email(email):
 
 # 初始化状态
 init_session_state()
+status, columns, experiment_info = get_info("experiments", "experiments")
+if status:
+    df = pd.DataFrame(experiment_info, columns=columns)
 
 # 页面标题
 st.title("📰 信息注册")
@@ -102,6 +107,14 @@ else:
     st.session_state.major = None
 
 ## 角色
+st.session_state.experiment_name = st.selectbox(
+    label="实验名称", 
+    options=df["experiment_name"].tolist() if status else [], 
+    disabled=not status,
+    key="experiment_select"
+)
+
+## 角色
 st.session_state.role = st.selectbox(
     label="用户角色", 
     options=["参与者"], 
@@ -128,7 +141,8 @@ with st.expander("📋 已填写信息预览", expanded=False):
         ])
     
     info_items.append(("用户角色", st.session_state.role))
-    
+    info_items.append(("实验名称", st.session_state.experiment_name))
+
     for label, value in info_items:
         if "未" in value:
             st.write(f"**{label}**：{st.markdown(f':red[{value}]')}")
@@ -169,6 +183,9 @@ if submit_clicked:
         if not major_val:
             error_messages.append("专业不能为空，请输入！")
     
+    if st.session_state.experiment_name is None:
+        error_messages.append("请选择实验项目！")
+
     if error_messages:
         st.error("提交失败，以下信息需要完善：")
         for msg in error_messages:
@@ -183,6 +200,7 @@ if submit_clicked:
             "school": school_val if school_visible else None,
             "major": major_val if school_visible else None,
             "role": st.session_state.role,
+            "experiment_name": st.session_state.experiment_name,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         status, message = register_user(user_data)

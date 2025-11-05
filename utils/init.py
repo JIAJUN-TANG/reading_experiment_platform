@@ -25,7 +25,8 @@ def init_user_db():
                 major TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 role TEXT NOT NULL DEFAULT "user",
-                user_group INTEGER NOT NULL DEFAULT 0
+                user_group INTEGER NOT NULL DEFAULT 0,
+                experiment_name TEXT NOT NULL
             )
         ''')
 
@@ -42,22 +43,6 @@ def init_user_db():
 
         c.execute('''
             CREATE INDEX IF NOT EXISTS idx_behavior_email ON behaviors(email)
-        ''')
-
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS statistics (
-                id INTEGER PRIMARY KEY,
-                email TEXT NOT NULL,
-                read INTEGER NOT NULL DEFAULT 0,
-                read_list TEXT NOT NULL,
-                remain INTEGER NOT NULL DEFAULT 0,
-                remain_list TEXT NOT NULL,
-                FOREIGN KEY (email) REFERENCES users(email) ON DELETE CASCADE
-            )
-        ''')
-
-        c.execute('''
-            CREATE INDEX IF NOT EXISTS idx_statistic_email ON statistics(email)
         ''')
 
         # 提交事务
@@ -102,10 +87,10 @@ def init_experiment_db():
                 experiment_name TEXT NOT NULL,
                 email TEXT NOT NULL,
                 material_name TEXT NOT NULL,
-                ai_function TEXT NOT NULL,
                 status INTEGER NOT NULL,
                 author TEXT NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 ended_at DATETIME NOT NULL,
                 FOREIGN KEY (experiment_name) REFERENCES experiments(experiment_name) ON DELETE CASCADE
@@ -135,5 +120,6 @@ def init_experiment_db():
 
     except sqlite3.Error as e:
         conn.rollback()
+        return e
     finally:
         conn.close()

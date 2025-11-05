@@ -1,7 +1,8 @@
 import streamlit as st
 from utils.user import validate_user
-from utils.data import check_assignments, get_statistics
+from utils.data import get_info
 from datetime import datetime
+import pandas as pd
 
 
 st.title("🔍 材料阅读")
@@ -45,42 +46,43 @@ else:
     st.markdown(f"欢迎回来，**{st.session_state['username']}**！")
     
     # 查询用户的材料分配
-    status, assignments = check_assignments(st.session_state["email"])
-    read_status, statistics = get_statistics(st.session_state["email"])
-    
-    if read_status:
+    status, assignment_columns, assignments = get_info("experiments", "assignments")
+    mat_status, mat_columns, materials = get_info("experiments", "materials")
+
+    if status and assignments:
+        assignments = pd.DataFrame(assignments, columns=assignment_columns)
+        materials = pd.DataFrame(materials, columns=mat_columns)
+        read_count = assignments[assignments['status'] == 1].shape[0]
+        remain_count = assignments[assignments['status'] == 0].shape[0]
         col1, col2 = st.columns(2)
         with col1:
             st.metric(
             label="已阅读",
-            value=statistics[2],
+            value=read_count,
             border=True
                 )
         with col2:
             st.metric(
             label="待阅读",
-            value=statistics[4],
+            value=remain_count,
             border=True
                 )
-    else:
-        st.warning(statistics)
-                
-    if not status:
+        
+        st.divider()
+
+        if remain_count > 0:
+            st.markdown("### 您收到的阅读材料如下：")
+            material_list = assignments["material_name"][assignments["status"] == 0].tolist()
+            for idx, mat_name in enumerate(material_list):
+                mat_info = materials[materials["material_name"] == mat_name].iloc[0]
+                with st.expander(f"📄 {idx+1}-{mat_name}"):
+                    st.markdown(f"**内容概述：** {mat_info['content']}")
+                    st.markdown(f"**开始日期：** {assignments['started_at'][assignments['material_name'] == mat_name].values[0]}")
+        else:
+            st.success("您已完成所有阅读材料！感谢您的参与！")
+
+    elif not status:
         # 显示查询错误
         st.error(f"材料查询失败：{assignments}")
     else:
-        if not assignments:
-            st.toast(body="您的阅读材料已全部完成，感谢！", icon="🎉")
-        else:
-            material_options = [item[1] for item in assignments]  # 提取材料名称
-            
-            st.subheader("您的阅读材料列表")
-            st.write("请选择下方材料进行阅读：")
-            material = st.selectbox(
-                "选择阅读材料",
-                options=material_options,
-                placeholder="请选择..."
-            )
-            
-            if material:
-                st.info(f"您选择了：{material}\n\n（此处可嵌入材料正文内容）")
+        st.toast(body="您的阅读材料已全部完成，感谢！", icon="🎉")

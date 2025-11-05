@@ -423,8 +423,43 @@ def manage_participant_page():
     st.divider()
 
 def manage_assignment_page():
-    st.markdown("### 分发管理")
-    st.info("分发管理功能正在开发中，敬请期待！")
+    st.markdown("### 新增分发")
+    user_status, user_columns, user_info = get_info("users", "users")
+    exp_status, exp_columns, exp_info = get_info("experiments", "experiments")
+    mat_status, mat_columns, mat_info = get_info("experiments", "materials")
+    if not mat_status:
+        st.info("暂无材料可分发，请先创建实验材料！")
+    else:
+        material_name = st.selectbox(label="选择材料", options=[m[2] for m in mat_info], disabled=not mat_info)
+        col1, col2 = st.columns(2)
+        with col1:
+            experiment_name = st.selectbox(label="选择实验", options=[e[1] for e in exp_info], disabled=not exp_info)
+        with col2:
+            assignment_scope = st.pills(label="分发范围", options=["按组别", "按用户"], key="assignment_scope")
+    to_whom = st.selectbox(label="选择组别" if assignment_scope == "按组别" else "按用户", options=
+                           sorted(set([u[10] for u in user_info])) if assignment_scope == "按组别" else 
+                           [u[1] for u in user_info], disabled=not assignment_scope, key="to_whom")
+    assignment_button = st.button(label="分发材料", key="assign_material_button")
+    if assignment_button:
+        status, msg = insert_data(db="experiments", table="assignments", data={
+            "experiment_name": experiment_name,
+            "email": to_whom,
+            "material_name": material_name,
+            "status": 0,
+            "author": st.session_state.get("current_username", "管理员"),
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "completed_at": "",
+            "started_at": "",
+            "ended_at": "",
+            },
+            primary_key=["experiment_name", "email", "material_name"])
+        if status:
+            st.success(f"材料「{material_name}」已成功分发给「{to_whom}」！")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.warning(f"分发失败：{msg}")
+    st.divider()
     
 def statistic_experiment_page():
     status, columns, user_info = get_info("experiments", "experiments")
