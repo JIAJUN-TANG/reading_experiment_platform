@@ -1,44 +1,63 @@
 import streamlit as st
-import time
-from datetime import datetime
-from utils.data import save_feedback
-from module.manage_module import statistic_experiment_page
+from config.settings import settings
+from models.data import save_feedback
+from services.experiment_service import get_experiments
 
 
-@st.dialog("意见反馈")
-def vote():
-    st.write("您的意见对我们改进十分重要！")
-    message = st.text_input(label="请输入您的意见")
-    if st.button("提交"):
-        st.session_state.vote = {"message": message}
-        status, massage = save_feedback(message, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        if status:
-            st.success(massage)
-        else:
-            st.warning(massage)
-        time.sleep(1)
-        st.rerun()
+def vote_dialog():
+    with st.form("vote_form", clear_on_submit=True):
+        st.write("请为我们的平台提供反馈")
+        vote = st.slider("评分", 1, 5, 3)
+        comment = st.text_area("您的建议", "")
+        submitted = st.form_submit_button("提交")
+        
+        if submitted:
+            save_feedback(str(vote), comment)
+            st.toast("感谢您的反馈！")
 
-st.title("欢迎参与阅读实验！")
 
-st.markdown("### 1.登记信息")
-st.markdown("在**第一次使用**时，请先于信息注册页面登记个人基本信息，并选择希望加入的实验项目。")
+# 标题
+st.title(settings.PAGE_CONFIG["title"])
 
-st.markdown("### 2.加入实验")
-st.markdown("选择您想参与的实验项目，待研究人员审批通过后方可正式开始实验。")
-
-st.markdown("### 3.阅读材料")
-st.markdown("研究人员会根据要求使用系统自动分发需要阅读的实验材料，在阅读前**请先输入邮箱登记**。")
+# 使用说明
+st.markdown("""
+    ### 欢迎使用阅读实验平台
+    
+    请按照以下步骤参与实验：
+    
+    1. **登记信息**：点击左侧导航栏中的 "信息注册"，填写个人基本信息
+    2. **加入实验**：完成信息注册后，系统将自动为您分配阅读材料
+    3. **阅读材料**：点击左侧导航栏中的 "材料阅读"，查看并阅读分配给您的材料
+    
+    如有任何问题，请联系平台管理员。
+    """)
 
 st.divider()
-statistic_experiment_page()
+
+# 实验统计信息
+st.subheader("实验统计")
+# 获取实验统计数据
+status, experiments, msg = get_experiments()
+if not status:
+    st.error(f"获取实验统计信息失败: {msg}")
+else:
+    # 显示统计卡片
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("总实验数", len(experiments) if experiments is not None else 0)
+    with col2:
+        st.badge("最新实验")
+        st.write(experiments[-1]["experiment_name"] if experiments is not None and len(experiments) > 0 else "暂无最新实验")
+
 st.divider()
 
-st.markdown("#### 联系我们")
-st.markdown("如您在实验过程中有任何疑问，请随时联系研究人员：")
-st.markdown("邮箱：-，电话：-")
-st.markdown("如您在使用过程中有任何疑问，请随时联系开发人员：")
-st.markdown("邮箱：[jiajuntang1101@smail.nju.edu.cn](jiajuntang1101@smail.nju.edu.cn)，电话：16680808521")
-feedback_button = st.button(label="在此反馈", type="secondary")
-if feedback_button:
-    vote()
+# 联系信息
+st.markdown("### 联系我们")
+st.markdown(f"""
+    **联系人**：管理员
+    **联系方式**：[{settings.ADMIN_EMAIL}](mailto:{settings.ADMIN_EMAIL})
+    """)
+
+# 反馈按钮
+if st.button("💬 给我们反馈", width="content"):
+    vote_dialog()

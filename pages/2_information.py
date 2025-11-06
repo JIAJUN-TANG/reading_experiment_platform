@@ -1,214 +1,221 @@
 import streamlit as st
-import re
-from datetime import datetime
-from utils.user import register_user
-from utils.notification import send_163_email
-from utils.data import get_info
-import pandas as pd
+from config.settings import settings
+from services.user_service import register_user, is_valid_email
+from services.notification_service import send_registration_email
+from services.experiment_service import get_experiments
 
 
-# 初始化session_state
 def init_session_state():
-    fields = [
-        "email", "username", "sex", "age", "degree", 
-        "school", "major", "role", "experiment_name"
-    ]
-    for field in fields:
-        if field not in st.session_state:
-            st.session_state[field] = None if field != "role" else "参与者"
-
-
-def is_valid_email(email):
-    return re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email) is not None
-
-
-# 初始化状态
-init_session_state()
-status, columns, experiment_info = get_info("experiments", "experiments")
-if status:
-    df = pd.DataFrame(experiment_info, columns=columns)
-
-# 页面标题
-st.title("📰 信息注册")
-
-# 输入组件区域
-## 邮箱
-st.session_state.email = st.text_input(
-    label="邮箱", 
-    value=st.session_state.email or "", 
-    placeholder="请输入您的邮箱（用于登录）", 
-    key="email_input"
-)
-
-## 姓名
-st.session_state.username = st.text_input(
-    label="姓名", 
-    value=st.session_state.username or "", 
-    placeholder="请输入您的真实姓名", 
-    key="username_input"
-)
-
-## 性别（selectbox）
-sex_options = ["男性", "女性"]
-st.session_state.sex = st.selectbox(
-    label="性别", 
-    options=sex_options,
-    index=sex_options.index(st.session_state.sex) if st.session_state.sex in sex_options else None,
-    placeholder="请选择您的性别", 
-    key="sex_select"
-)
-
-## 年龄（修改为selectbox，原范围1-100岁不变）
-age_options = [f"{i}岁" for i in range(1, 101)]  # 生成带"岁"的选项（如"1岁"、"2岁"...）
-# 处理当前年龄值（从session_state中提取数字，匹配选项）
-current_age = st.session_state.age
-# 计算索引：如果当前年龄存在，找到对应的"XX岁"选项索引；否则为None
-age_index = age_options.index(f"{current_age}岁") if (current_age and f"{current_age}岁" in age_options) else None
-
-st.session_state.age = st.selectbox(
-    label="年龄", 
-    options=age_options,  # 下拉选项为"1岁"到"100岁"
-    index=age_index,
-    placeholder="请选择您的年龄", 
-    key="age_select"
-)
-# 从选择的"XX岁"中提取数字（方便后续存储）
-if st.session_state.age:
-    st.session_state.age = int(st.session_state.age.replace("岁", ""))
-
-## 学历
-st.session_state.degree = st.selectbox(
-    label="学历", 
-    options=["初中、中专及以下", "高中或高职", "本科或专科", "硕士研究生", "博士研究生"], 
-    index=None if st.session_state.degree is None else [
-        "初中、中专及以下", "高中或高职", "本科或专科", "硕士研究生", "博士研究生"
-    ].index(st.session_state.degree),
-    placeholder="请选择您的学历", 
-    key="degree_select"
-)
-
-## 学校和专业（条件显示）
-school_visible = st.session_state.degree in ["本科或专科", "硕士研究生", "博士研究生"]
-if school_visible:
-    st.session_state.school = st.text_input(
-        label="学校", 
-        value=st.session_state.school or "", 
-        placeholder="请输入您的学校名称", 
-        key="school_input"
-    )
-    st.session_state.major = st.text_input(
-        label="专业", 
-        value=st.session_state.major or "", 
-        placeholder="请输入您的专业名称", 
-        key="major_input"
-    )
-else:
-    st.session_state.school = None
-    st.session_state.major = None
-
-## 角色
-st.session_state.experiment_name = st.selectbox(
-    label="实验名称", 
-    options=df["experiment_name"].tolist() if status else [], 
-    disabled=not status,
-    key="experiment_select"
-)
-
-## 角色
-st.session_state.role = st.selectbox(
-    label="用户角色", 
-    options=["参与者"], 
-    index=0,
-    disabled=True,
-    key="role_select"
-)
-
-
-# 信息预览区域
-with st.expander("📋 已填写信息预览", expanded=False):
-    info_items = [
-        ("邮箱", st.session_state.email.strip() if st.session_state.email else "未填写"),
-        ("姓名", st.session_state.username.strip() if st.session_state.username else "未填写"),
-        ("性别", st.session_state.sex if st.session_state.sex else "未选择"),
-        ("年龄", f"{st.session_state.age}岁" if st.session_state.age else "未选择"),  # 显示带"岁"的格式
-        ("学历", st.session_state.degree if st.session_state.degree else "未选择")
-    ]
+    # 初始化会话状态
+    if 'submit_success' not in st.session_state:
+        st.session_state.submit_success = False
     
-    if school_visible:
-        info_items.extend([
-            ("学校", st.session_state.school.strip() if st.session_state.school else "未填写"),
-            ("专业", st.session_state.major.strip() if st.session_state.major else "未填写")
-        ])
-    
-    info_items.append(("用户角色", st.session_state.role))
-    info_items.append(("实验名称", st.session_state.experiment_name))
+    # 初始化表单输入
+    if 'email' not in st.session_state:
+        st.session_state.email = ''
+    if 'name' not in st.session_state:
+        st.session_state.username = ''
+    if 'sex' not in st.session_state:
+        st.session_state.sex = settings.SEX_OPTIONS[0]
+    if 'age' not in st.session_state:
+        st.session_state.age = ''
+    if 'degree' not in st.session_state:
+        st.session_state.degree = settings.DEGREE_OPTIONS[0]
+    if 'selected_experiments' not in st.session_state:
+        st.session_state.selected_experiments = []
+    if 'role' not in st.session_state:
+        st.session_state.role = '参与者'
 
-    for label, value in info_items:
-        if "未" in value:
-            st.write(f"**{label}**：{st.markdown(f':red[{value}]')}")
-        else:
-            st.write(f"**{label}**：{value}")
 
-
-# 提交按钮及验证
-submit_clicked = st.button(label="提交信息", key="submit_btn")
-
-if submit_clicked:
-    error_messages = []
-    email_val = (st.session_state.email or "").strip()
-    username_val = (st.session_state.username or "").strip()
+def main():
+    st.title('📋 个人信息登记')
     
-    if not email_val:
-        error_messages.append("邮箱不能为空，请输入！")
-    elif not is_valid_email(email_val):
-        error_messages.append("邮箱格式不正确")
+    # 初始化会话状态
+    init_session_state()
     
-    if not username_val:
-        error_messages.append("姓名不能为空，请输入！")
+    # 如果提交成功，显示成功消息
+    if st.session_state.submit_success:
+        st.success('您的信息已成功提交！')
+        st.info('请点击左侧导航栏中的 "材料阅读" 开始实验。')
+        return
     
-    if not st.session_state.sex:
-        error_messages.append("请选择性别！")
-    
-    if st.session_state.age is None:  # 验证年龄是否选择
-        error_messages.append("请选择年龄！")
-    
-    if st.session_state.degree is None:
-        error_messages.append("请选择学历！")
-    
-    if school_visible:
-        school_val = (st.session_state.school or "").strip()
-        major_val = (st.session_state.major or "").strip()
-        if not school_val:
-            error_messages.append("学校不能为空，请输入！")
-        if not major_val:
-            error_messages.append("专业不能为空，请输入！")
-    
-    if st.session_state.experiment_name is None:
-        error_messages.append("请选择实验项目！")
-
-    if error_messages:
-        st.error("提交失败，以下信息需要完善：")
-        for msg in error_messages:
-            st.error(f"• {msg}")
-    else:
-        user_data = {
-            "email": email_val,
-            "username": username_val,
-            "sex": st.session_state.sex,
-            "age": st.session_state.age,
-            "degree": st.session_state.degree,
-            "school": school_val if school_visible else None,
-            "major": major_val if school_visible else None,
-            "role": st.session_state.role,
-            "experiment_name": st.session_state.experiment_name,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        status, message = register_user(user_data)
-        if status:
-            s = send_163_email(username=user_data["username"], receiver_email=user_data["email"], subject=None, content=None, template="register_template")
-            if s:
-                st.warning(s)
-            st.success(message)
-        else:
-            st.warning(message)
+    # 创建表单
+    with st.form("information_form"):
+        # 个人基本信息
+        st.subheader("个人基本信息*")
         
+        # 邮箱（必填）
+        st.session_state.email = st.text_input(
+            "邮箱*", 
+            placeholder="请输入您的邮箱",
+            value=st.session_state.email
+        )
+        
+        # 姓名（必填）
+        st.session_state.username = st.text_input(
+            "姓名*", 
+            placeholder="请输入您的姓名",
+            value=st.session_state.username
+        )
+        
+        # 性别（必填）
+        st.session_state.sex = st.selectbox(
+            "性别*", 
+            placeholder="请选择您的性别",
+            options=settings.SEX_OPTIONS,
+            index=None,
+        )
+        
+        # 年龄（必填）
+        st.session_state.age = st.number_input(
+            "年龄*", 
+            placeholder="请输入您的年龄",
+            value=None,
+            min_value=1,
+            max_value=100,
+            step=1
+        )
+        
+        # 学历（必填）
+        st.session_state.degree = st.selectbox(
+            "学历*", 
+            placeholder="请选择您的学历",
+            options=settings.DEGREE_OPTIONS,
+            index=None
+        )
+        
+        # 职业（必填）
+        st.session_state.job = st.selectbox(
+            "职业*", 
+            placeholder="请选择您的职业",
+            options=settings.JOB_OPTIONS,
+            index=None,
+        )
+        
+        # 实验选择
+        st.subheader("实验选择*")
+        try:
+            status, experiments, msg = get_experiments()
+            if status and experiments:
+                experiment_names = [exp["experiment_name"] for exp in experiments ]
+            else:
+                st.error(msg)
+        except Exception as e:
+            st.error(f"获取实验列表失败: {e}")
+            
+        selected_exp = st.selectbox(  
+            "请选择您要参与的实验",  
+            options=experiment_names,
+            disabled=not experiment_names,
+        )  
+        st.session_state.selected_experiments = selected_exp
+        
+        # 角色设置
+        st.subheader("角色设置")
+        st.session_state.role = st.radio(
+            "请选择您的角色", 
+            ["参与者", "研究人员"],
+            index=0 if st.session_state.role == "参与者" else 1,
+            disabled=True
+        )
+        
+        # 提交按钮
+        submit_button = st.form_submit_button(
+                label="提交信息",
+                width="content"
+            )
+    
+    # 处理表单提交
+    if submit_button:
+        # 表单验证
+        if not st.session_state.email:
+            st.error("邮箱不能为空！")
+            return
+        
+        if not st.session_state.username:
+            st.error("姓名不能为空！")
+            return
+        
+        if not st.session_state.age:
+            st.error("年龄不能为空！")
+            return
+        
+        # 验证邮箱格式
+        if not is_valid_email(st.session_state.email):
+            st.error("请输入有效的邮箱！")
+            return
+        
+        # 验证年龄为数字
+        try:
+            age = int(st.session_state.age)
+            if age < 1 or age > 100:
+                st.error("请输入有效的年龄！")
+                return
+        except ValueError:
+            st.error("年龄必须为数字！")
+            return
+        
+        # 验证至少选择一个实验
+        if not st.session_state.selected_experiments:
+            st.error("请至少选择一个实验！")
+            return
+        
+        # 信息预览
+        st.subheader("信息预览")
+        preview_data = {
+            "邮箱": st.session_state.email,
+            "姓名": st.session_state.username,
+            "性别": st.session_state.sex,
+            "年龄": st.session_state.age,
+            "职业": st.session_state.job,
+            "学历": st.session_state.degree,
+            "参与实验": st.session_state.selected_experiments,
+            "角色": st.session_state.role
+        }
+        
+        for key, value in preview_data.items():
+            st.write(f"**{key}**: {value}")
+        
+        # 提交到数据库
+        try:
+            status, msg = register_user(
+                {
+                    "email": st.session_state.email,
+                    "username": st.session_state.username,
+                    "sex": st.session_state.sex,
+                    "age": st.session_state.age,
+                    "job": st.session_state.job,
+                    "degree": st.session_state.degree,
+                    "experiment_name": st.session_state.selected_experiments,
+                    "role": st.session_state.role
+                }
+            )
+            
+            if status:
+                # 发送邮件通知
+                email_response = send_registration_email(
+                    username=st.session_state.username,
+                    receiver_email=st.session_state.email
+                )
+                if not email_response.success:
+                    st.warning(f"邮件发送失败: {email_response.error}")
+                
+                # 设置会话状态，标记提交成功
+                st.session_state.submit_success = True
+                st.success("注册成功！系统将自动跳转...")
+                
+                # 存储用户信息到会话状态
+                st.session_state.username = st.session_state.username
+                st.session_state.email = st.session_state.email
+                
+                # 模拟跳转
+                import time
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error(f"注册失败: {msg}")
+        except Exception as e:
+            st.error(f"系统错误：{str(e)}")
+
+if __name__ == "__main__":
+    main()
