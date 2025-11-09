@@ -54,7 +54,14 @@ def save_feedback(feedback: str, feedback_time: str) -> Tuple[bool, str]:
         return False, f"反馈失败：{str(e)}"
 
 
-def record_behavior(email: str, action: str, act_time: str, target: Optional[str] = None) -> Tuple[bool, str]:
+def record_behavior(
+    email: str,
+    action: str,
+    act_time: str,
+    target: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None
+) -> Tuple[bool, str]:
     """
     记录用户行为
     
@@ -63,26 +70,52 @@ def record_behavior(email: str, action: str, act_time: str, target: Optional[str
         action: 行为动作
         act_time: 行为时间
         target: 行为目标（可选）
+        ip_address: 用户IP地址（可选）
+        user_agent: 用户代理信息（可选）
         
     Returns:
         Tuple[bool, str]: (是否成功, 消息)
     """
+    # 参数验证
+    if not email or not email.strip():
+        return False, "邮箱不能为空"
+    
+    if not action or not action.strip():
+        return False, "行为动作不能为空"
+    
+    # 导入Database类（确保在函数内正确导入）
+    from .db import Database
+    import sqlite3
+    
     db = Database("users")
     if not db.connect():
         return False, "数据库连接失败"
     
     try:
+        # 处理None值
+        target = target or ""
+        ip_address = ip_address or ""
+        user_agent = user_agent or ""
+        
         db.execute(
-            "INSERT INTO behaviors (email, action, act_at, target) VALUES (?, ?, ?, ?)",
-            (email, action, act_time, target)
+            "INSERT INTO behaviors (email, action, act_at, target, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
+            (email, action, act_time, target, ip_address, user_agent)
         )
         db.commit()
         return True, "行为记录成功"
+    except sqlite3.Error as e:
+        if 'db' in locals() and db:
+            db.rollback()
+        print(f"记录用户行为时发生数据库错误: {str(e)}")
+        return False, "行为记录失败"
     except Exception as e:
-        db.rollback()
-        return False, f"行为记录失败：{str(e)}"
+        if 'db' in locals() and db:
+            db.rollback()
+        print(f"记录用户行为时发生错误: {str(e)}")
+        return False, "行为记录失败"
     finally:
-        db.close()
+        if 'db' in locals() and db:
+            db.close()
 
 
 def get_info(db_name: str, table: str) -> Tuple[bool, Optional[List[str]], Union[List[Tuple], str]]:

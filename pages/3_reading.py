@@ -1,5 +1,6 @@
 import streamlit as st
-from services.user_service import login_user
+import time
+from services.user_service import enhanced_login
 from services.experiment_service import get_user_assignments, read_assignment, get_material_by_name
 
 
@@ -32,22 +33,26 @@ if st.session_state["username"] in [None, ""]:
             if not email_clean:
                 st.warning("邮箱不能为空，请输入！")
             else:
-                # 使用服务层的validate_user函数
-                status, username, msg = login_user(email_clean)
-                
-                if status:
-                    # 验证成功：更新session状态
-                    st.session_state["email"] = email_clean
-                    st.session_state["username"] = username
-                    st.success(f"验证成功！欢迎，{username}")
-                    st.rerun()  # 刷新页面生效
-                else:
-                    # 显示具体错误信息
-                    st.warning(msg)
+                # 使用服务层的enhanced_login函数进行用户验证
+                try:
+                    status, username, msg = enhanced_login(email_clean, st.session_state)
+                    
+                    if status:
+                        # 验证成功：更新session状态
+                        st.session_state["email"] = email_clean
+                        st.session_state["username"] = username
+                        st.success(f"验证成功！欢迎，{username}")
+                        st.rerun()  # 刷新页面生效
+                    else:
+                        # 显示具体错误信息
+                        st.warning(msg)
+                except Exception as e:
+                    st.error(f"登录验证过程中发生错误: {str(e)}")
+                    # 提供重试选项
+                    if st.button("重试登录"):
+                        st.rerun()
 
 else:
-    # 已登录状态
-    st.markdown(f"欢迎回来，**{st.session_state['username']}**！")
     
     # 定义返回材料列表的函数
     def back_to_list():
@@ -63,6 +68,7 @@ else:
         # 阅读模式判断
         if not st.session_state["reading_mode"]:
             # 材料列表模式
+            st.markdown(f"欢迎回来，**{st.session_state['username']}**！")
             # 使用服务层获取用户材料分配
             status, assignments, msg = get_user_assignments(st.session_state["email"])
             
@@ -122,31 +128,39 @@ else:
             if current_material:
                 material_name = current_material.get("material_name", "未命名材料")
                 
-                # 记录用户点击阅读行为
-                read_assignment(st.session_state["email"], material_name, 1)  # 状态为1表示正在阅读
+                # 记录用户点击阅读行为，添加IP和用户代理信息
+                try:
+                    ip_address = None
+                    user_agent = None
+                    if hasattr(st, 'session_state') and 'client_info' in st.session_state:
+                        client_info = st.session_state['client_info']
+                        ip_address = getattr(client_info, 'client', None)
+                        user_agent = getattr(client_info, 'user_agent', None)
+                    # 状态1表示正在阅读
+                    status_update, msg = read_assignment(st.session_state["email"], material_name, 1, ip_address, user_agent)
+                    if not status_update:
+                        st.warning(f"更新阅读状态失败: {msg}")
+                except Exception as e:
+                    st.warning(f"记录阅读行为时发生错误: {str(e)}")
             
                 
                 # 获取材料详情
-                status, material_details, error_msg = get_material_by_name(material_name)
+                materials= get_material_by_name(material_name)
                 
                 # 设置页面标题
-                st.title(f"阅读材料: {material_name}")
+                st.title(f"{material_name}")
                 
                 # 显示材料内容
                 st.markdown("---")
-                st.markdown("### 材料内容")
-                if status and material_details:
-                    st.markdown(material_details.get('content', '暂无内容'))
+                if materials:
+                    st.markdown(materials.get('content', '暂无内容'))
                     
                     # AI功能提示（如果有）
-                    ai_function = material_details.get('ai_function', '')
+                    ai_function = materials.get('ai_function', '')
                     if ai_function:
-                        st.markdown("---")
-                        st.markdown("### AI功能")
-                        st.info(ai_function)
+                        pass
                 else:
-                    st.warning(f"获取材料详情时出现问题: {error_msg or '未知错误'}")
-                    st.info("材料内容暂时无法加载，请稍后再试。")
+                    st.error("材料内容暂时无法加载，请稍后再试。")
                 
                 # 显示操作按钮
                 st.markdown("---")
@@ -155,26 +169,37 @@ else:
                     if st.button("标记为已完成", width="content"):
                         with st.spinner("正在更新状态..."):
                             try:
-                                success, msg = read_assignment(st.session_state["email"], material_name, 1)
+                                success, msg = read_assignment(st.session_state["email"], material_name, 2, ip_address, user_agent)
                                 if success:
                                     st.success("已成功标记为完成！")
                                     # 延迟后返回材料列表
-                                    import time
                                     time.sleep(1.5)
                                     back_to_list()
                                     st.rerun()
                                 else:
                                     st.error(f"更新失败: {msg}")
+                                    # 提供重试选项
+                                    if st.button("重试标记为完成"):
+                                        st.rerun()
                             except Exception as e:
                                 st.error(f"更新状态时发生错误: {str(e)}")
                 with col2:
-                    st.button("返回材料列表", on_click=back_to_list, width="content")
+                    st.sidebar.button("返回材料列表", on_click=back_to_list, width="content")
             else:
                 st.error("未找到阅读材料信息")
-                st.button("返回材料列表", on_click=back_to_list, width="content")
                 
     except Exception as e:
         st.error(f"获取材料失败：{str(e)}")
-        # 添加恢复选项
-        if st.button("重试获取材料"):
-            st.rerun()
+        
+        # 显示详细错误信息并提供恢复选项
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("重试获取材料"):
+                st.rerun()
+        with col2:
+            if st.button("返回登录页面"):
+                st.session_state["username"] = None
+                st.session_state["email"] = None
+                st.session_state["reading_mode"] = False
+                st.session_state["current_material"] = None
+                st.rerun()

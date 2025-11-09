@@ -5,11 +5,12 @@ from services.user_service import check_access, get_all_users
 from services.experiment_service import (
     create_experiment, get_experiments,
     create_material, get_materials,
-    assign_material_to_user, get_user_assignments
+    assign_material_to_user, get_assignments
 )
 from services.notification_service import send_invitation_email
 from datetime import datetime
 import time
+import pandas as pd
 
 
 # 用户管理页面
@@ -270,18 +271,35 @@ def manage_assignments_page():
                 for user in users:
                     # 确保user是字典类型
                     if isinstance(user, dict) and 'email' in user:
-                        # 正确处理get_user_assignments的返回值
-                        assignment_status, assignments, _ = get_user_assignments(user['email'])
+                        # 正确处理get_assignments的返回值
+                        assignment_status, assignments, _ = get_assignments()
                         if assignment_status and assignments:
                             all_assignments.extend(assignments)
         except Exception as e:
             st.error(f"获取分配列表失败: {e}")
         
         if all_assignments:
+            # 转换为DataFrame格式显示
+            assignment_data = []
             for assignment in all_assignments:
-                with st.expander(f"{assignment.get('user_email')} - {assignment.get('material_name')}"):
-                    st.write(f"**状态**: {'已完成' if assignment.get('status') == 1 or assignment.get('status') == '已完成' else '待完成'}")
-                    st.write(f"**分配时间**: {assignment.get('assigned_at')}")
+                # 确保assignment是字典类型
+                if isinstance(assignment, dict):
+                    # 获取状态的中文描述
+                    status_text = '已完成' if assignment.get('status') == 2 else '待完成'
+                    
+                    # 构建数据行
+                    data_row = {
+                        '邮箱': assignment.get('email', ''),
+                        '材料名称': assignment.get('material_name', ''),
+                        '状态': status_text,
+                        '分配时间': assignment.get('assigned_at', '') or assignment.get('created_at', '')
+                    }
+                    assignment_data.append(data_row)
+            
+            # 创建并显示DataFrame
+            if assignment_data:
+                df = pd.DataFrame(assignment_data)
+                st.dataframe(df, width="stretch", hide_index=True)
         else:
             st.info("暂无分配记录")
     except Exception as e:
