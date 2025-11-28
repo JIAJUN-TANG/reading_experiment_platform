@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReadLab AI</title>
+    <style>
+      /* Custom scrollbar for a cleaner reading experience */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+    </style>
+
+<link rel="stylesheet" href="./index.css">
+</head>
+  <body class="bg-gray-50 text-slate-800 antialiased h-screen overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
+  <script type="module" src="./index.tsx"></script>
+</body>
+</html>

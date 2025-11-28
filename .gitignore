@@ -1,2 +1,9 @@
 data/
 utils/_pycache_
+node_modules
+
+.env
+.DS_Store
+
+dist
+database
